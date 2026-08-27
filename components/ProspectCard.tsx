@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { Prospect } from '@/lib/types'
 import type { Status } from '@/lib/status'
 import { STATUSES } from '@/lib/status'
@@ -30,13 +31,28 @@ function ago(iso: string): string {
 export function ProspectCard({
   p,
   status,
+  translation,
+  translating,
   onStatus,
 }: {
   p: Prospect
   status: Status
+  translation?: string
+  translating: boolean
   onStatus: (s: Status) => void
 }) {
+  const [copied, setCopied] = useState(false)
   const dimmed = status === 'rejected' || status === 'replied'
+
+  async function copyText() {
+    try {
+      await navigator.clipboard.writeText(p.text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      // clipboard blocked — the text is on screen anyway
+    }
+  }
 
   return (
     <article
@@ -59,6 +75,16 @@ export function ProspectCard({
       <blockquote className="border-l-2 border-rule py-1 pl-4 font-display text-[15px] leading-relaxed">
         {p.text}
       </blockquote>
+
+      <div className="mt-2.5 border-l-2 border-accent/40 py-1 pl-4">
+        {translation ? (
+          <p className="text-[14px] leading-relaxed text-ink2">{translation}</p>
+        ) : translating ? (
+          <p className="font-mono text-[12px] text-muted">Перевожу…</p>
+        ) : (
+          <p className="font-mono text-[12px] text-muted">Перевод недоступен</p>
+        )}
+      </div>
 
       {p.signals.length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-1.5">
@@ -104,6 +130,14 @@ export function ProspectCard({
         >
           Открыть комментарий →
         </a>
+        <button
+          type="button"
+          onClick={copyText}
+          title="Если YouTube не долистал — вставь текст в поиск по странице (Ctrl+F)"
+          className="rounded-xs border border-rule px-3 py-1.5 font-mono text-[11px] tracking-wide text-muted uppercase transition-colors hover:border-accent hover:text-accentink"
+        >
+          {copied ? 'Скопировано' : 'Копировать текст'}
+        </button>
         <div className="flex flex-wrap gap-1.5">
           {STATUSES.map((s) => (
             <button

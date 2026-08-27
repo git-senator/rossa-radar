@@ -14,3 +14,10 @@ build/
 .vercel
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
+.env*
+
+# local scan dumps
+live.json
+scan*.json

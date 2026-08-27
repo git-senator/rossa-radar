@@ -165,7 +165,10 @@ export async function scan(config: ScanConfig, key: string): Promise<ScanResult>
         videoId: v.id,
         videoTitle: v.title,
         channelTitle: v.channel,
-        url: `https://www.youtube.com/watch?v=${v.id}&lc=${th.id}`,
+        // `lc` makes YouTube scroll to the comment and highlight it; `app=desktop`
+        // keeps mobile browsers on the web player, which is the only place
+        // `lc` is honoured — the YouTube app silently ignores it.
+        url: `https://www.youtube.com/watch?v=${v.id}&lc=${th.id}&app=desktop`,
         score,
         heat,
         signals,

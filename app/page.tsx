@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ProspectCard } from '@/components/ProspectCard'
 import { useStatuses, type Status } from '@/lib/status'
+import { useTranslations } from '@/lib/translations'
 import { DEFAULT_CONFIG, type Heat, type ScanResult } from '@/lib/types'
 
 const CACHE = 'rossa-radar:lastScan:v1'
@@ -42,6 +43,12 @@ export default function Page() {
   const [minScore, setMinScore] = useState(DEFAULT_CONFIG.minScore)
 
   const { map: statuses, set: setStatus } = useStatuses()
+  const {
+    map: translations,
+    translate,
+    pending: translating,
+    error: translateError,
+  } = useTranslations()
 
   // restore the previous scan and settings — a scan costs quota, don't lose it
   useEffect(() => {
@@ -74,6 +81,12 @@ export default function Page() {
     if (dark === null) return
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
   }, [dark])
+
+  // Translate whatever the last scan turned up — cached, so this is a no-op
+  // for comments already seen.
+  useEffect(() => {
+    if (result?.prospects.length) void translate(result.prospects)
+  }, [result, translate])
 
   const runScan = useCallback(async () => {
     setRunning(true)
@@ -242,6 +255,12 @@ export default function Page() {
         </p>
       )}
 
+      {translateError && (
+        <p className="rounded-sm border border-rule bg-surface px-4 py-3 text-sm text-muted">
+          Перевод не работает: {translateError}
+        </p>
+      )}
+
       {result && (
         <>
           <section className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-rule bg-rulesoft sm:grid-cols-4">
@@ -272,6 +291,8 @@ export default function Page() {
                 key={p.id}
                 p={p}
                 status={statuses[p.id] ?? 'new'}
+                translation={translations[p.id]}
+                translating={translating}
                 onStatus={(s) => setStatus(p.id, s)}
               />
             ))}
