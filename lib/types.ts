@@ -53,15 +53,18 @@ export interface ScanResult {
   errors: string[]
 }
 
+/** Два языка, на которых ищем покупателей: английский и русский. */
 export const DEFAULT_QUERIES = [
   'retire in Brazil',
   'moving to Brazil from USA',
   'cost of living in Brazil',
   'buying property in Brazil foreigner',
   'living in Florianopolis Brazil expat',
-  'Brazil beach town expat retire',
   'why I moved to Brazil American',
-  'Brazil real estate market foreigners',
+  'переезд в Бразилию',
+  'жизнь в Бразилии цены',
+  'недвижимость в Бразилии для иностранцев',
+  'ВНЖ Бразилия как получить',
 ]
 
 /** Channels the recon turned up as the places our buyers actually gather. */

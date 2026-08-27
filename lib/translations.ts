@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { isRussian } from './classify'
 import type { Prospect } from './types'
 
 const KEY = 'rossa-radar:translations:v1'
@@ -26,7 +27,7 @@ export function useTranslations() {
   }, [])
 
   const translate = useCallback(async (prospects: Prospect[]) => {
-    const todo = prospects.filter((p) => !inFlight.current.has(p.id))
+    const todo = prospects.filter((p) => !isRussian(p.text) && !inFlight.current.has(p.id))
     if (todo.length === 0) return
 
     setMap((current) => {

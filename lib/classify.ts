@@ -209,6 +209,12 @@ export function isOurLanguage(text: string): boolean {
   return !pt || pt.length < 3
 }
 
+/** Русский комментарий переводить не нужно — его и так видно. */
+export function isRussian(text: string): boolean {
+  const cyr = text.match(/[Ѐ-ӿ]/g)
+  return !!cyr && cyr.length >= text.replace(/\s/g, '').length * 0.3
+}
+
 export interface Verdict {
   score: number
   heat: Heat

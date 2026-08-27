@@ -1,0 +1,46 @@
+name: Обход каналов
+
+on:
+  schedule:
+    # Каждые 30 минут. GitHub может задержать запуск при высокой нагрузке —
+    # это нормально, радар всё равно смотрит на несколько дней назад.
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # можно запустить руками из вкладки Actions
+
+# Нужен для коммита state/seen.json обратно в репозиторий.
+permissions:
+  contents: write
+
+# Два обхода одновременно записали бы память друг поверх друга.
+concurrency:
+  group: watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Обойти каналы и оповестить
+        env:
+          RADAR_URL: ${{ secrets.RADAR_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/watch.mjs
+
+      - name: Запомнить показанных
+        run: |
+          if [ -n "$(git status --porcelain state/)" ]; then
+            git config user.name  'rossa-radar'
+            git config user.email 'radar@users.noreply.github.com'
+            git add state/
+            git commit -m 'Память обхода'
+            git push
+          else
+            echo 'Ничего нового — память не изменилась.'
+          fi

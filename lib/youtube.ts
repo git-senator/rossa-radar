@@ -199,7 +199,9 @@ export async function scan(config: ScanConfig, key: string): Promise<ScanResult>
           q,
           type: 'video',
           maxResults: config.perQuery,
-          relevanceLanguage: 'en',
+          // Ищем на двух языках: запрос на кириллице должен приводить русские
+          // ролики, а не англоязычные с похожими словами.
+          relevanceLanguage: /[Ѐ-ӿ]/.test(q) ? 'ru' : 'en',
           order: 'relevance',
         },
         key,

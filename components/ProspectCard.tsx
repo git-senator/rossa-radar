@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { isRussian } from '@/lib/classify'
 import type { Prospect } from '@/lib/types'
 import type { Status } from '@/lib/status'
 import { STATUSES } from '@/lib/status'
@@ -76,15 +77,17 @@ export function ProspectCard({
         {p.text}
       </blockquote>
 
-      <div className="mt-2.5 border-l-2 border-accent/40 py-1 pl-4">
-        {translation ? (
-          <p className="text-[14px] leading-relaxed text-ink2">{translation}</p>
-        ) : translating ? (
-          <p className="font-mono text-[12px] text-muted">Перевожу…</p>
-        ) : (
-          <p className="font-mono text-[12px] text-muted">Перевод недоступен</p>
-        )}
-      </div>
+      {!isRussian(p.text) && (
+        <div className="mt-2.5 border-l-2 border-accent/40 py-1 pl-4">
+          {translation ? (
+            <p className="text-[14px] leading-relaxed text-ink2">{translation}</p>
+          ) : translating ? (
+            <p className="font-mono text-[12px] text-muted">Перевожу…</p>
+          ) : (
+            <p className="font-mono text-[12px] text-muted">Перевод недоступен</p>
+          )}
+        </div>
+      )}
 
       {p.signals.length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-1.5">
