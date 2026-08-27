@@ -47,7 +47,7 @@ async function pooled<T, R>(
 interface SearchResponse {
   items?: {
     id: { videoId: string }
-    snippet: { title: string; channelTitle: string }
+    snippet: { title: string; channelTitle: string; channelId: string }
   }[]
 }
 
@@ -61,6 +61,7 @@ interface ThreadsResponse {
           textDisplay: string
           authorDisplayName: string
           authorChannelUrl?: string
+          authorChannelId?: { value?: string }
           authorProfileImageUrl?: string
           publishedAt: string
           likeCount?: number
@@ -74,6 +75,8 @@ interface Video {
   id: string
   title: string
   channel: string
+  /** Чтобы отличить комментарий автора ролика от комментария зрителя. */
+  channelId: string
 }
 
 interface ChannelsResponse {
@@ -89,6 +92,8 @@ interface PlaylistResponse {
     snippet: {
       title: string
       channelTitle: string
+      channelId: string
+      videoOwnerChannelId?: string
       resourceId: { videoId: string }
     }
   }[]
@@ -175,6 +180,7 @@ async function videosFromChannel(
       id: it.snippet.resourceId.videoId,
       title: it.snippet.title,
       channel: it.snippet.channelTitle,
+      channelId: it.snippet.videoOwnerChannelId ?? it.snippet.channelId,
     }))
     return { videos, title: found?.snippet?.title ?? raw, error: null }
   } catch (e) {
@@ -219,6 +225,7 @@ export async function scan(config: ScanConfig, key: string): Promise<ScanResult>
         id: it.id.videoId,
         title: it.snippet.title,
         channel: it.snippet.channelTitle,
+        channelId: it.snippet.channelId,
       })
     }
   }
@@ -266,10 +273,14 @@ export async function scan(config: ScanConfig, key: string): Promise<ScanResult>
       if (new Date(c.publishedAt) < since) continue
       freshComments++
 
+      // Владельцы каналов закрепляют под своими роликами рекламу услуг —
+      // это не лид, а конкурент.
+      if (c.authorChannelId?.value && c.authorChannelId.value === v.channelId) continue
+
       const text = c.textDisplay.replace(/\s+/g, ' ').trim()
       if (!isOurLanguage(text)) continue
 
-      const { score, heat, signals } = classify(text)
+      const { score, heat, signals } = classify(text, v.title)
       if (score < config.minScore) continue
 
       prospects.push({
