@@ -41,6 +41,8 @@ export default function Page() {
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [heat, setHeat] = useState<HeatFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open')
   const [dark, setDark] = useState<boolean | null>(null)
@@ -96,6 +98,9 @@ export default function Page() {
     } catch {
       // corrupt or blocked storage — start clean rather than crash
     }
+    // Только теперь можно включать автосохранение: иначе первый же проход
+    // затёр бы сохранённые настройки значениями по умолчанию.
+    setSettingsLoaded(true)
   }, [])
 
   useEffect(() => {
@@ -108,6 +113,26 @@ export default function Page() {
   useEffect(() => {
     if (result?.prospects.length) void translate(result.prospects)
   }, [result, translate])
+
+  // Настройки сохраняются сами, как только их поменяли: отдельной кнопки
+  // «Сохранить» нет, и её отсутствие не должно стоить пользователю списка
+  // каналов, набитого вручную.
+  useEffect(() => {
+    if (!settingsLoaded) return
+    const t = window.setTimeout(() => {
+      try {
+        localStorage.setItem(
+          CONFIG,
+          JSON.stringify({ queries, channels, days, perQuery, minScore }),
+        )
+        setSaved(true)
+        window.setTimeout(() => setSaved(false), 1600)
+      } catch {
+        // хранилище заблокировано — настройки проживут до перезагрузки
+      }
+    }, 600)
+    return () => window.clearTimeout(t)
+  }, [settingsLoaded, queries, channels, days, perQuery, minScore])
 
   const runScan = useCallback(async () => {
     setRunning(true)
@@ -342,6 +367,13 @@ export default function Page() {
 
       {showSettings && (
         <section className="flex flex-col gap-5 rounded-sm border border-rule bg-surface p-5">
+          <p className="font-mono text-[12px] text-muted">
+            {saved ? (
+              <span className="text-accentink">Сохранено</span>
+            ) : (
+              'Сохраняется само — отдельной кнопки нет'
+            )}
+          </p>
           <div className="flex flex-col gap-2">
             <label htmlFor="queries" className="font-display text-base font-semibold">
               Поисковые запросы
