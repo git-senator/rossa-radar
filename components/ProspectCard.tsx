@@ -43,6 +43,7 @@ export function ProspectCard({
   onStatus: (s: Status) => void
 }) {
   const [copied, setCopied] = useState(false)
+  const [opened, setOpened] = useState(false)
   const dimmed = status === 'rejected' || status === 'replied'
 
   async function copyText() {
@@ -53,6 +54,17 @@ export function ProspectCard({
     } catch {
       // clipboard blocked — the text is on screen anyway
     }
+  }
+
+  /**
+   * YouTube поднимает нужный комментарий наверх списка, но саму страницу к
+   * комментариям не прокручивает — и заставить его нельзя. Поэтому забираем
+   * текст в буфер заранее: на YouTube останется Ctrl+F и вставить.
+   */
+  async function openComment() {
+    await copyText()
+    setOpened(true)
+    setTimeout(() => setOpened(false), 8000)
   }
 
   return (
@@ -129,6 +141,7 @@ export function ProspectCard({
           href={p.url}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={openComment}
           className="rounded-xs border border-accent px-3.5 py-1.5 text-sm font-semibold text-accentink transition-colors hover:bg-accentsoft"
         >
           Открыть комментарий →
@@ -136,7 +149,7 @@ export function ProspectCard({
         <button
           type="button"
           onClick={copyText}
-          title="Если YouTube не долистал — вставь текст в поиск по странице (Ctrl+F)"
+          title="Вставь текст в поиск по странице YouTube (Ctrl+F)"
           className="rounded-xs border border-rule px-3 py-1.5 font-mono text-[11px] tracking-wide text-muted uppercase transition-colors hover:border-accent hover:text-accentink"
         >
           {copied ? 'Скопировано' : 'Копировать текст'}
@@ -159,6 +172,13 @@ export function ProspectCard({
           ))}
         </div>
       </div>
+
+      {opened && (
+        <p className="mt-3 rounded-xs border border-accent bg-accentsoft px-3 py-2 text-[13px] text-accentink">
+          Текст скопирован. На YouTube прокрути вниз к комментариям — этот будет
+          первым в списке. Не нашёлся: Ctrl+F, Ctrl+V, Enter.
+        </p>
+      )}
     </article>
   )
 }
