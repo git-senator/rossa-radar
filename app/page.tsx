@@ -38,6 +38,7 @@ export default function Page() {
   const [dark, setDark] = useState<boolean | null>(null)
 
   const [queries, setQueries] = useState(DEFAULT_CONFIG.queries.join('\n'))
+  const [channels, setChannels] = useState(DEFAULT_CONFIG.channels.join('\n'))
   const [days, setDays] = useState(DEFAULT_CONFIG.days)
   const [perQuery, setPerQuery] = useState(DEFAULT_CONFIG.perQuery)
   const [minScore, setMinScore] = useState(DEFAULT_CONFIG.minScore)
@@ -63,11 +64,13 @@ export default function Page() {
       if (cfg) {
         const c = JSON.parse(cfg) as {
           queries: string
+          channels?: string
           days: number
           perQuery: number
           minScore: number
         }
         setQueries(c.queries)
+        setChannels(c.channels ?? '')
         setDays(c.days)
         setPerQuery(c.perQuery)
         setMinScore(c.minScore)
@@ -95,11 +98,15 @@ export default function Page() {
       .split('\n')
       .map((q) => q.trim())
       .filter(Boolean)
+    const channelList = channels
+      .split('\n')
+      .map((c) => c.trim())
+      .filter(Boolean)
     try {
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ queries: list, days, perQuery, minScore }),
+        body: JSON.stringify({ queries: list, channels: channelList, days, perQuery, minScore }),
       })
       const data = (await res.json()) as ScanResult & { error?: string }
       if (!res.ok || data.error) throw new Error(data.error ?? `Ошибка ${res.status}`)
@@ -108,7 +115,10 @@ export default function Page() {
       setScannedAt(at)
       try {
         localStorage.setItem(CACHE, JSON.stringify({ at, result: data }))
-        localStorage.setItem(CONFIG, JSON.stringify({ queries, days, perQuery, minScore }))
+        localStorage.setItem(
+          CONFIG,
+          JSON.stringify({ queries, channels, days, perQuery, minScore }),
+        )
       } catch {
         // over quota or blocked — results stay in memory for this session
       }
@@ -117,7 +127,7 @@ export default function Page() {
     } finally {
       setRunning(false)
     }
-  }, [queries, days, perQuery, minScore])
+  }, [queries, channels, days, perQuery, minScore])
 
   const counts = useMemo(() => {
     const p = result?.prospects ?? []
@@ -138,9 +148,11 @@ export default function Page() {
   }, [result, heat, statusFilter, statuses])
 
   const cost = useMemo(() => {
-    const n = queries.split('\n').filter((q) => q.trim()).length
-    return n * 100 + n * perQuery
-  }, [queries, perQuery])
+    const q = queries.split('\n').filter((s) => s.trim()).length
+    const c = channels.split('\n').filter((s) => s.trim()).length
+    // A search costs 100; a channel costs 2 (lookup + uploads list).
+    return q * 100 + c * 2 + (q + c) * perQuery
+  }, [queries, channels, perQuery])
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-12">
@@ -217,6 +229,27 @@ export default function Page() {
             />
           </div>
 
+          <div className="flex flex-col gap-2">
+            <label htmlFor="channels" className="font-display text-base font-semibold">
+              Каналы под наблюдением
+            </label>
+            <p className="text-[13px] text-muted">
+              По одной ссылке в строке — например{' '}
+              <span className="font-mono">https://www.youtube.com/@bitvalatam</span>. Годится и
+              просто <span className="font-mono">@bitvalatam</span>. Канал стоит 2 единицы
+              квоты против 100 за поисковый запрос, так что список можно держать длинным.
+            </p>
+            <textarea
+              id="channels"
+              value={channels}
+              onChange={(e) => setChannels(e.target.value)}
+              rows={5}
+              spellCheck={false}
+              placeholder="https://www.youtube.com/@bitvalatam"
+              className="rounded-xs border border-rule bg-ground p-3 font-mono text-[13px] leading-relaxed"
+            />
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-3">
             <Field
               id="days"
@@ -229,8 +262,8 @@ export default function Page() {
             />
             <Field
               id="perQuery"
-              label="Роликов на запрос"
-              hint="Больше роликов — шире охват, дороже скан"
+              label="Роликов на источник"
+              hint="Сколько брать с каждого запроса и с каждого канала"
               value={perQuery}
               min={1}
               max={25}

@@ -30,12 +30,20 @@ export async function POST(request: Request) {
     ? body.queries.map((q) => String(q).trim()).filter(Boolean).slice(0, 12)
     : DEFAULT_CONFIG.queries
 
-  if (queries.length === 0) {
-    return Response.json({ error: 'Нужен хотя бы один поисковый запрос.' }, { status: 400 })
+  const channels = Array.isArray(body.channels)
+    ? body.channels.map((c) => String(c).trim()).filter(Boolean).slice(0, 40)
+    : DEFAULT_CONFIG.channels
+
+  if (queries.length === 0 && channels.length === 0) {
+    return Response.json(
+      { error: 'Нужен хотя бы один поисковый запрос или канал.' },
+      { status: 400 },
+    )
   }
 
   const config: ScanConfig = {
     queries,
+    channels,
     days: clamp(body.days, 1, 365, DEFAULT_CONFIG.days),
     perQuery: clamp(body.perQuery, 1, 25, DEFAULT_CONFIG.perQuery),
     minScore: clamp(body.minScore, 0, 100, DEFAULT_CONFIG.minScore),

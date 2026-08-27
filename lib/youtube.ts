@@ -4,14 +4,14 @@ import type { Prospect, ScanConfig, ScanResult } from './types'
 const API = 'https://www.googleapis.com/youtube/v3/'
 
 /** Quota cost per call, straight from the YouTube Data API docs. */
-const COST = { search: 100, commentThreads: 1 }
+const COST = { search: 100, commentThreads: 1, channels: 1, playlistItems: 1 }
 
 interface Counter {
   quota: number
 }
 
 async function call<T>(
-  endpoint: 'search' | 'commentThreads',
+  endpoint: keyof typeof COST,
   params: Record<string, string | number>,
   key: string,
   counter: Counter,
@@ -76,6 +76,112 @@ interface Video {
   channel: string
 }
 
+interface ChannelsResponse {
+  items?: {
+    id: string
+    snippet?: { title: string }
+    contentDetails?: { relatedPlaylists?: { uploads?: string } }
+  }[]
+}
+
+interface PlaylistResponse {
+  items?: {
+    snippet: {
+      title: string
+      channelTitle: string
+      resourceId: { videoId: string }
+    }
+  }[]
+}
+
+/**
+ * Turns whatever the owner pasted into something the API understands:
+ * a full URL, a bare @handle, or a raw channel id.
+ */
+export function parseChannelInput(raw: string): { kind: 'id' | 'handle' | 'user'; value: string } | null {
+  const s = raw.trim().replace(/^@/, '@')
+  if (!s) return null
+
+  // Raw ids and handles typed without a URL
+  if (/^UC[\w-]{20,}$/.test(s)) return { kind: 'id', value: s }
+  if (/^@[\w.-]+$/.test(s)) return { kind: 'handle', value: s }
+
+  let path: string
+  try {
+    const url = new URL(s.startsWith('http') ? s : `https://${s}`)
+    if (!/(^|\.)youtube\.com$/.test(url.hostname)) return null
+    path = url.pathname
+  } catch {
+    return null
+  }
+
+  const handle = path.match(/^\/(@[\w.-]+)/)
+  if (handle) return { kind: 'handle', value: handle[1] }
+
+  const id = path.match(/^\/channel\/(UC[\w-]+)/)
+  if (id) return { kind: 'id', value: id[1] }
+
+  const user = path.match(/^\/(?:user|c)\/([\w.-]+)/)
+  if (user) return { kind: 'user', value: user[1] }
+
+  return null
+}
+
+/** Resolves a channel to its uploads playlist, then lists its latest videos. */
+async function videosFromChannel(
+  raw: string,
+  limit: number,
+  key: string,
+  counter: Counter,
+): Promise<{ videos: Video[]; title: string | null; error: string | null }> {
+  const parsed = parseChannelInput(raw)
+  if (!parsed) {
+    return { videos: [], title: null, error: `не похоже на ссылку канала: «${raw}»` }
+  }
+
+  const lookup: Record<string, string> =
+    parsed.kind === 'id'
+      ? { id: parsed.value }
+      : parsed.kind === 'handle'
+        ? { forHandle: parsed.value }
+        : { forUsername: parsed.value }
+
+  let channel: ChannelsResponse
+  try {
+    channel = await call<ChannelsResponse>(
+      'channels',
+      { part: 'snippet,contentDetails', ...lookup },
+      key,
+      counter,
+    )
+  } catch (e) {
+    return { videos: [], title: null, error: `${raw}: ${(e as Error).message}` }
+  }
+
+  const found = channel.items?.[0]
+  const uploads = found?.contentDetails?.relatedPlaylists?.uploads
+  if (!uploads) {
+    return { videos: [], title: null, error: `канал не найден: «${raw}»` }
+  }
+
+  try {
+    const list = await call<PlaylistResponse>(
+      'playlistItems',
+      { part: 'snippet', playlistId: uploads, maxResults: Math.min(50, Math.max(1, limit)) },
+      key,
+      counter,
+    )
+    const videos = (list.items ?? []).map((it) => ({
+      id: it.snippet.resourceId.videoId,
+      title: it.snippet.title,
+      channel: it.snippet.channelTitle,
+    }))
+    return { videos, title: found?.snippet?.title ?? raw, error: null }
+  } catch (e) {
+    return { videos: [], title: null, error: `${raw}: ${(e as Error).message}` }
+  }
+}
+
 export async function scan(config: ScanConfig, key: string): Promise<ScanResult> {
   const started = Date.now()
   const counter: Counter = { quota: 0 }
@@ -113,6 +219,17 @@ export async function scan(config: ScanConfig, key: string): Promise<ScanResult>
         channel: it.snippet.channelTitle,
       })
     }
+  }
+
+  // ---- 1b. plus the channels the owner put on the watchlist ---------------
+  const channelsRead: string[] = []
+  const fromChannels = await pooled(config.channels, 4, (raw) =>
+    videosFromChannel(raw, config.perQuery, key, counter),
+  )
+  for (const r of fromChannels) {
+    if (r.error) errors.push(r.error)
+    if (r.title) channelsRead.push(r.title)
+    for (const v of r.videos) videos.set(v.id, v)
   }
 
   // ---- 2. read fresh comments under each one ------------------------------
@@ -190,6 +307,7 @@ export async function scan(config: ScanConfig, key: string): Promise<ScanResult>
       quotaUsed: counter.quota,
       tookMs: Date.now() - started,
       since: since.toISOString(),
+      channelsRead,
     },
     errors,
   }
