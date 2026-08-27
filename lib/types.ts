@@ -67,13 +67,70 @@ export const DEFAULT_QUERIES = [
   'ВНЖ Бразилия как получить',
 ]
 
-/** Channels the recon turned up as the places our buyers actually gather. */
-export const DEFAULT_CHANNELS: string[] = []
+/**
+ * Каналы, отобранные разведкой: сначала считалась не популярность, а
+ * разговорчивость — сколько комментариев приходится на тысячу просмотров.
+ * Сверху англоязычные (аудитория на два порядка крупнее), ниже русские.
+ */
+export const DEFAULT_CHANNELS = [
+  // — США: переезд в Бразилию, жизнь, недвижимость
+  'https://www.youtube.com/@andysadventuresbrl',
+  'https://www.youtube.com/@nordicinvestor',
+  'https://www.youtube.com/@ourbrazilianlife',
+  'https://www.youtube.com/@livingabroadwitheric',
+  'https://www.youtube.com/@brazilusaconnection',
+  'https://www.youtube.com/@travelingwithkristin',
+  'https://www.youtube.com/@adventurefreaksss',
+  'https://www.youtube.com/@gringorecifence',
+  'https://www.youtube.com/@livingwiseglobal',
+  'https://www.youtube.com/@raisingwildflowers',
+  // — Канада: отъезд за границу и ранняя пенсия
+  'https://www.youtube.com/@blueprint.financial',
+  'https://www.youtube.com/@isagetslost',
+  'https://www.youtube.com/@maiabundant',
+  'https://www.youtube.com/@earlyretirementari',
+  'https://www.youtube.com/@robyn_smith',
+  'https://www.youtube.com/@nomadelite',
+  'https://www.youtube.com/@moneywithmark69',
+  // — русскоязычные, живут в Бразилии
+  'https://www.youtube.com/@sizova_k',
+  'https://www.youtube.com/@chechetkin_tut',
+  'https://www.youtube.com/@taropizhka',
+  'https://www.youtube.com/@kirill_brasil',
+  'https://www.youtube.com/@balakina_brazil',
+  'https://www.youtube.com/@lenainbrazil',
+  'https://www.youtube.com/@geonevazhno',
+  'https://www.youtube.com/@adveeenturers',
+  'https://www.youtube.com/@lomfam',
+  'https://www.youtube.com/@buzo',
+  'https://www.youtube.com/@bitvalatam',
+  // — русскоязычные сервисные: роды, ВНЖ, документы
+  'https://www.youtube.com/@elenji_brazil',
+  'https://www.youtube.com/@brazilpapa',
+  'https://www.youtube.com/@svoibrazil',
+  'https://www.youtube.com/@kamal_salbitti',
+  'https://www.youtube.com/@katia.brazil',
+  'https://www.youtube.com/@dyakonovm',
+  // — конкуренты: продают недвижимость в Бразилии русским
+  'https://www.youtube.com/@invest_in_brazil',
+  'https://www.youtube.com/@legacy_house_brazil',
+  // — соседние темы: эмиграция и Латинская Америка вообще
+  'https://www.youtube.com/@vadim_from_uru',
+  'https://www.youtube.com/@mashkevichlife',
+  'https://www.youtube.com/@shotaowl',
+  'https://www.youtube.com/@nestrashno',
+  'https://www.youtube.com/@varlamov.travel',
+  'https://www.youtube.com/@jastravelalex',
+  'https://www.youtube.com/@vova.karmanov',
+]
 
 export const DEFAULT_CONFIG: ScanConfig = {
-  queries: DEFAULT_QUERIES,
+  // Пусто намеренно: список каналов уже собран поиском, а каждый запрос
+  // стоит 100 единиц против 2 за канал. Добавлять — по необходимости,
+  // подсказки лежат в поле ввода.
+  queries: [],
   channels: DEFAULT_CHANNELS,
   days: 30,
-  perQuery: 10,
+  perQuery: 15,
   minScore: 25,
 }

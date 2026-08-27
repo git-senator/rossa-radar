@@ -14,7 +14,7 @@ import { useTranslations } from '@/lib/translations'
 import { DEFAULT_CONFIG, type Heat, type ScanResult } from '@/lib/types'
 
 const CACHE = 'rossa-radar:lastScan:v1'
-const CONFIG = 'rossa-radar:config:v1'
+const CONFIG = 'rossa-radar:config:v2' // v2: подставляем отобранный список каналов поверх старых настроек
 const KNOWN = 'rossa-radar:known:v1'
 
 type HeatFilter = Heat | 'all'
@@ -408,7 +408,7 @@ export default function Page() {
               onChange={(e) => setChannels(e.target.value)}
               rows={5}
               spellCheck={false}
-              placeholder="https://www.youtube.com/@bitvalatam"
+              placeholder="https://www.youtube.com/@handle"
               className="rounded-xs border border-rule bg-ground p-3 font-mono text-[13px] leading-relaxed"
             />
           </div>
