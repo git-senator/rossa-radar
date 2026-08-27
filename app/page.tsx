@@ -1,13 +1,21 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ProspectCard } from '@/components/ProspectCard'
+import {
+  armSound,
+  askNotificationPermission,
+  flashTitle,
+  playChime,
+  showNotification,
+} from '@/lib/notify'
 import { useStatuses, type Status } from '@/lib/status'
 import { useTranslations } from '@/lib/translations'
 import { DEFAULT_CONFIG, type Heat, type ScanResult } from '@/lib/types'
 
 const CACHE = 'rossa-radar:lastScan:v1'
 const CONFIG = 'rossa-radar:config:v1'
+const KNOWN = 'rossa-radar:known:v1'
 
 type HeatFilter = Heat | 'all'
 type StatusFilter = 'all' | 'open' | Status
@@ -36,6 +44,14 @@ export default function Page() {
   const [heat, setHeat] = useState<HeatFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open')
   const [dark, setDark] = useState<boolean | null>(null)
+  const [watching, setWatching] = useState(false)
+  const [everyMin, setEveryMin] = useState(15)
+  const [nextAt, setNextAt] = useState<number | null>(null)
+  const [freshCount, setFreshCount] = useState(0)
+
+  /** Кого уже показывали — чтобы пикать только на новых. */
+  const known = useRef<Set<string>>(new Set())
+  const scanRef = useRef<() => Promise<void>>(async () => {})
 
   const [queries, setQueries] = useState(DEFAULT_CONFIG.queries.join('\n'))
   const [channels, setChannels] = useState(DEFAULT_CONFIG.channels.join('\n'))
@@ -60,6 +76,8 @@ export default function Page() {
         setResult(saved.result)
         setScannedAt(saved.at)
       }
+      const seen = localStorage.getItem(KNOWN)
+      if (seen) known.current = new Set(JSON.parse(seen) as string[])
       const cfg = localStorage.getItem(CONFIG)
       if (cfg) {
         const c = JSON.parse(cfg) as {
@@ -113,6 +131,27 @@ export default function Page() {
       const at = new Date().toISOString()
       setResult(data)
       setScannedAt(at)
+
+      // Первый в жизни скан не пикает: иначе на пустой памяти зазвонит на всех.
+      const first = known.current.size === 0
+      const appeared = data.prospects.filter((p) => !known.current.has(p.id))
+      data.prospects.forEach((p) => known.current.add(p.id))
+      try {
+        localStorage.setItem(KNOWN, JSON.stringify([...known.current].slice(-3000)))
+      } catch {
+        // переполнено — не беда, в худшем случае пикнет повторно
+      }
+
+      if (!first && appeared.length > 0) {
+        setFreshCount(appeared.length)
+        playChime()
+        const best = appeared[0]
+        showNotification(
+          `Радар: ${appeared.length} ${appeared.length === 1 ? 'новый' : 'новых'}`,
+          `${best.author}: ${best.text.slice(0, 120)}`,
+        )
+        if (document.hidden) flashTitle(`● ${appeared.length} новых — Радар`)
+      }
       try {
         localStorage.setItem(CACHE, JSON.stringify({ at, result: data }))
         localStorage.setItem(
@@ -128,6 +167,36 @@ export default function Page() {
       setRunning(false)
     }
   }, [queries, channels, days, perQuery, minScore])
+
+  scanRef.current = runScan
+
+  // Слежка: будим скан по таймеру, пока вкладка открыта.
+  useEffect(() => {
+    if (!watching) {
+      setNextAt(null)
+      return
+    }
+    const ms = Math.max(2, everyMin) * 60_000
+    setNextAt(Date.now() + ms)
+    const timer = window.setInterval(() => {
+      setNextAt(Date.now() + ms)
+      void scanRef.current()
+    }, ms)
+    return () => window.clearInterval(timer)
+  }, [watching, everyMin])
+
+  const toggleWatch = useCallback(async () => {
+    if (watching) {
+      setWatching(false)
+      return
+    }
+    // Клик — это то самое действие пользователя, без которого браузер
+    // не разрешает звук.
+    armSound()
+    await askNotificationPermission()
+    setWatching(true)
+    void runScan()
+  }, [watching, runScan])
 
   const counts = useMemo(() => {
     const p = result?.prospects ?? []
@@ -203,10 +272,72 @@ export default function Page() {
           >
             {showSettings ? 'Свернуть настройки' : 'Настройки поиска'}
           </button>
+          <button
+            type="button"
+            onClick={toggleWatch}
+            aria-pressed={watching}
+            className={`flex items-center gap-2 rounded-xs border px-4 py-2.5 text-sm font-medium transition-colors ${
+              watching
+                ? 'border-accent bg-accentsoft text-accentink'
+                : 'border-rule text-ink2 hover:border-accent hover:text-accentink'
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`inline-block h-2 w-2 rounded-full ${
+                watching ? 'animate-pulse bg-accent' : 'bg-muted'
+              }`}
+            />
+            {watching ? 'Слежу' : 'Следить и пикать'}
+          </button>
           <span className="font-mono text-[12px] text-muted tabular-nums">
             ~{cost} из 10 000 квоты за скан
           </span>
         </div>
+
+        {watching && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xs border border-rule bg-surface px-4 py-3">
+            <span className="font-mono text-[12px] text-muted">Проверять каждые</span>
+            <input
+              type="number"
+              min={2}
+              max={720}
+              value={everyMin}
+              onChange={(e) => setEveryMin(Number(e.target.value))}
+              aria-label="Интервал проверки в минутах"
+              className="w-20 rounded-xs border border-rule bg-ground px-2 py-1 font-mono text-sm tabular-nums"
+            />
+            <span className="font-mono text-[12px] text-muted">мин</span>
+            <span className="font-mono text-[12px] text-muted tabular-nums">
+              ≈{Math.floor((1440 / Math.max(2, everyMin)) * cost).toLocaleString('ru-RU')} квоты в
+              сутки{' '}
+              {(1440 / Math.max(2, everyMin)) * cost > 10000 && (
+                <span className="text-hot">— не влезет, увеличь интервал</span>
+              )}
+            </span>
+            {nextAt && (
+              <span className="ml-auto font-mono text-[12px] text-muted tabular-nums">
+                следующая в {new Date(nextAt).toLocaleTimeString('ru-RU')}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                armSound()
+                setTimeout(playChime, 60)
+              }}
+              className="rounded-xs border border-rule px-3 py-1 font-mono text-[11px] tracking-wide text-muted uppercase transition-colors hover:border-accent hover:text-accentink"
+            >
+              Проверить звук
+            </button>
+          </div>
+        )}
+
+        {freshCount > 0 && (
+          <p className="rounded-xs border border-accent bg-accentsoft px-4 py-2.5 text-sm text-accentink">
+            Новых с прошлой проверки: <strong>{freshCount}</strong>
+          </p>
+        )}
       </header>
 
       {showSettings && (
