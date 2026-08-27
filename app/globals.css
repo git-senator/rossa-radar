@@ -1,0 +1,106 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ground: #f1f3f5;
+  --color-surface: #ffffff;
+  --color-raised: #e6eaef;
+  --color-ink: #14181f;
+  --color-ink2: #3d4552;
+  --color-muted: #6e7783;
+  --color-rule: #d5dae1;
+  --color-rulesoft: #e3e7ec;
+  --color-accent: #8f6318;
+  --color-accentink: #8f6318;
+  --color-accentsoft: #f2e6cd;
+  --color-hot: #9c3b2b;
+  --color-hotsoft: #f6e1dc;
+  --color-warm: #8f6318;
+  --color-warmsoft: #f2e6cd;
+  --color-cold: #4a5a6b;
+  --color-coldsoft: #e2e7ec;
+
+  --font-display: var(--font-literata), Georgia, serif;
+  --font-sans: var(--font-commissioner), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-ground: #0f1319;
+    --color-surface: #161b23;
+    --color-raised: #1d232d;
+    --color-ink: #e9ecf1;
+    --color-ink2: #b4bcc7;
+    --color-muted: #868f9c;
+    --color-rule: #293039;
+    --color-rulesoft: #20262f;
+    --color-accent: #d9a751;
+    --color-accentink: #e5bb71;
+    --color-accentsoft: #2c2517;
+    --color-hot: #db7a67;
+    --color-hotsoft: #33201c;
+    --color-warm: #d9a751;
+    --color-warmsoft: #2c2517;
+    --color-cold: #8fa3b5;
+    --color-coldsoft: #1c242c;
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-ground: #0f1319;
+  --color-surface: #161b23;
+  --color-raised: #1d232d;
+  --color-ink: #e9ecf1;
+  --color-ink2: #b4bcc7;
+  --color-muted: #868f9c;
+  --color-rule: #293039;
+  --color-rulesoft: #20262f;
+  --color-accent: #d9a751;
+  --color-accentink: #e5bb71;
+  --color-accentsoft: #2c2517;
+  --color-hot: #db7a67;
+  --color-hotsoft: #33201c;
+  --color-warm: #d9a751;
+  --color-warmsoft: #2c2517;
+  --color-cold: #8fa3b5;
+  --color-coldsoft: #1c242c;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes radar-sweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sweep {
+  animation: radar-sweep 1.6s linear infinite;
+}
