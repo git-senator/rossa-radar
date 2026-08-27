@@ -2,7 +2,7 @@ export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
 const DEFAULT_BASE = 'https://api.groq.com/openai/v1'
-const DEFAULT_MODEL = 'llama-3.3-70b-versatile'
+const DEFAULT_MODEL = 'openai/gpt-oss-120b'
 
 /** Comments are short; a dozen per request keeps latency low and output valid. */
 const BATCH = 12
