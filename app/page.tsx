@@ -14,7 +14,7 @@ import { useTranslations } from '@/lib/translations'
 import { DEFAULT_CONFIG, type Heat, type ScanResult } from '@/lib/types'
 
 const CACHE = 'rossa-radar:lastScan:v1'
-const CONFIG = 'rossa-radar:config:v2' // v2: подставляем отобранный список каналов поверх старых настроек
+const CONFIG = 'rossa-radar:config:v2'
 const KNOWN = 'rossa-radar:known:v1'
 
 type HeatFilter = Heat | 'all'
@@ -32,7 +32,7 @@ const STATUS_TABS: { id: StatusFilter; label: string }[] = [
   { id: 'working', label: 'В работе' },
   { id: 'replied', label: 'Ответили' },
   { id: 'rejected', label: 'Не наши' },
-  { id: 'all', label: 'Показать все' },
+  { id: 'all', label: 'Все подряд' },
 ]
 
 export default function Page() {
@@ -45,7 +45,7 @@ export default function Page() {
   const [saved, setSaved] = useState(false)
   const [heat, setHeat] = useState<HeatFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open')
-  const [dark, setDark] = useState<boolean | null>(null)
+  const [light, setLight] = useState<boolean | null>(null)
   const [watching, setWatching] = useState(false)
   const [everyMin, setEveryMin] = useState(15)
   const [nextAt, setNextAt] = useState<number | null>(null)
@@ -69,14 +69,13 @@ export default function Page() {
     error: translateError,
   } = useTranslations()
 
-  // restore the previous scan and settings — a scan costs quota, don't lose it
   useEffect(() => {
     try {
       const raw = localStorage.getItem(CACHE)
       if (raw) {
-        const saved = JSON.parse(raw) as { at: string; result: ScanResult }
-        setResult(saved.result)
-        setScannedAt(saved.at)
+        const prev = JSON.parse(raw) as { at: string; result: ScanResult }
+        setResult(prev.result)
+        setScannedAt(prev.at)
       }
       const seen = localStorage.getItem(KNOWN)
       if (seen) known.current = new Set(JSON.parse(seen) as string[])
@@ -96,7 +95,7 @@ export default function Page() {
         setMinScore(c.minScore)
       }
     } catch {
-      // corrupt or blocked storage — start clean rather than crash
+      // хранилище повреждено или закрыто — начинаем с чистого, но не падаем
     }
     // Только теперь можно включать автосохранение: иначе первый же проход
     // затёр бы сохранённые настройки значениями по умолчанию.
@@ -104,19 +103,16 @@ export default function Page() {
   }, [])
 
   useEffect(() => {
-    if (dark === null) return
-    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
-  }, [dark])
+    if (light === null) return
+    document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark')
+  }, [light])
 
-  // Translate whatever the last scan turned up — cached, so this is a no-op
-  // for comments already seen.
   useEffect(() => {
     if (result?.prospects.length) void translate(result.prospects)
   }, [result, translate])
 
-  // Настройки сохраняются сами, как только их поменяли: отдельной кнопки
-  // «Сохранить» нет, и её отсутствие не должно стоить пользователю списка
-  // каналов, набитого вручную.
+  // Настройки сохраняются сами: отдельной кнопки нет, и её отсутствие не должно
+  // стоить владельцу списка каналов, набитого вручную.
   useEffect(() => {
     if (!settingsLoaded) return
     const t = window.setTimeout(() => {
@@ -137,14 +133,8 @@ export default function Page() {
   const runScan = useCallback(async () => {
     setRunning(true)
     setError(null)
-    const list = queries
-      .split('\n')
-      .map((q) => q.trim())
-      .filter(Boolean)
-    const channelList = channels
-      .split('\n')
-      .map((c) => c.trim())
-      .filter(Boolean)
+    const list = queries.split('\n').map((q) => q.trim()).filter(Boolean)
+    const channelList = channels.split('\n').map((c) => c.trim()).filter(Boolean)
     try {
       const res = await fetch('/api/scan', {
         method: 'POST',
@@ -153,6 +143,7 @@ export default function Page() {
       })
       const data = (await res.json()) as ScanResult & { error?: string }
       if (!res.ok || data.error) throw new Error(data.error ?? `Ошибка ${res.status}`)
+
       const at = new Date().toISOString()
       setResult(data)
       setScannedAt(at)
@@ -161,11 +152,6 @@ export default function Page() {
       const first = known.current.size === 0
       const appeared = data.prospects.filter((p) => !known.current.has(p.id))
       data.prospects.forEach((p) => known.current.add(p.id))
-      try {
-        localStorage.setItem(KNOWN, JSON.stringify([...known.current].slice(-3000)))
-      } catch {
-        // переполнено — не беда, в худшем случае пикнет повторно
-      }
 
       if (!first && appeared.length > 0) {
         setFreshCount(appeared.length)
@@ -177,14 +163,12 @@ export default function Page() {
         )
         if (document.hidden) flashTitle(`● ${appeared.length} новых — Радар`)
       }
+
       try {
+        localStorage.setItem(KNOWN, JSON.stringify([...known.current].slice(-3000)))
         localStorage.setItem(CACHE, JSON.stringify({ at, result: data }))
-        localStorage.setItem(
-          CONFIG,
-          JSON.stringify({ queries, channels, days, perQuery, minScore }),
-        )
       } catch {
-        // over quota or blocked — results stay in memory for this session
+        // переполнено или закрыто — результаты живут до перезагрузки
       }
     } catch (e) {
       setError((e as Error).message)
@@ -195,7 +179,6 @@ export default function Page() {
 
   scanRef.current = runScan
 
-  // Слежка: будим скан по таймеру, пока вкладка открыта.
   useEffect(() => {
     if (!watching) {
       setNextAt(null)
@@ -215,8 +198,7 @@ export default function Page() {
       setWatching(false)
       return
     }
-    // Клик — это то самое действие пользователя, без которого браузер
-    // не разрешает звук.
+    // Клик — то самое действие пользователя, без которого браузер не даёт звук.
     armSound()
     await askNotificationPermission()
     setWatching(true)
@@ -244,35 +226,37 @@ export default function Page() {
   const cost = useMemo(() => {
     const q = queries.split('\n').filter((s) => s.trim()).length
     const c = channels.split('\n').filter((s) => s.trim()).length
-    // A search costs 100; a channel costs 2 (lookup + uploads list).
+    // Поисковый запрос стоит 100 единиц, канал — 2 (поиск канала + список видео).
     return q * 100 + c * 2 + (q + c) * perQuery
   }, [queries, channels, perQuery])
 
+  const perDay = Math.floor((1440 / Math.max(2, everyMin)) * cost)
+
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-12">
-      <header className="flex flex-col gap-4 border-b border-rule pb-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex flex-col gap-1.5">
-            <span className="font-mono text-[11px] tracking-[0.16em] text-muted uppercase">
-              The Rossa Group · поиск покупателей
-            </span>
-            <h1 className="font-display text-4xl leading-tight font-bold tracking-tight text-balance">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-12 px-5 py-10 sm:px-10 sm:py-16">
+      <header className="flex flex-col gap-7">
+        <div className="flex items-start justify-between gap-6">
+          <div className="flex flex-col gap-3">
+            <span className="label text-golddim">The Rossa Group</span>
+            <h1 className="font-display text-6xl leading-[0.95] font-light tracking-tight sm:text-7xl">
               Радар
             </h1>
           </div>
           <button
             type="button"
-            onClick={() => setDark((d) => !(d ?? matchMedia('(prefers-color-scheme: dark)').matches))}
-            className="rounded-xs border border-rule px-3 py-1.5 font-mono text-[11px] tracking-wide text-muted uppercase transition-colors hover:border-accent hover:text-accentink"
+            onClick={() =>
+              setLight((v) => !(v ?? !matchMedia('(prefers-color-scheme: dark)').matches))
+            }
+            className="label border border-rule px-3 py-2 text-muted transition-colors hover:border-gold hover:text-goldink"
           >
             Тема
           </button>
         </div>
 
-        <p className="max-w-[62ch] text-[15px] text-ink2">
-          Читает свежие комментарии под англоязычными роликами про переезд и жизнь в Бразилии
-          и показывает тех, кто собирается переехать или купить жильё. Контактов YouTube не
-          отдаёт — отвечать можно только публично, под тем же роликом.
+        <p className="max-w-[58ch] text-[1.05rem] leading-relaxed text-ink2">
+          Читает свежие комментарии под роликами про переезд и жизнь в Бразилии и
+          показывает тех, кто собирается переехать или купить жильё. Контактов YouTube
+          не отдаёт — отвечать можно только публично, под тем же роликом.
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -280,7 +264,7 @@ export default function Page() {
             type="button"
             onClick={runScan}
             disabled={running}
-            className="flex items-center gap-2.5 rounded-xs bg-accent px-5 py-2.5 text-sm font-semibold text-ground transition-opacity disabled:opacity-60"
+            className="flex items-center gap-3 bg-gold px-7 py-3 text-[15px] font-semibold text-ground transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {running && (
               <span
@@ -288,41 +272,42 @@ export default function Page() {
                 className="sweep inline-block h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent"
               />
             )}
-            {running ? 'Сканирую…' : 'Запустить скан'}
+            {running ? 'Сканирую' : 'Запустить скан'}
           </button>
-          <button
-            type="button"
-            onClick={() => setShowSettings((s) => !s)}
-            className="rounded-xs border border-rule px-4 py-2.5 text-sm font-medium text-ink2 transition-colors hover:border-accent hover:text-accentink"
-          >
-            {showSettings ? 'Свернуть настройки' : 'Настройки поиска'}
-          </button>
+
           <button
             type="button"
             onClick={toggleWatch}
             aria-pressed={watching}
-            className={`flex items-center gap-2 rounded-xs border px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex items-center gap-2.5 border px-5 py-3 text-[15px] transition-colors ${
               watching
-                ? 'border-accent bg-accentsoft text-accentink'
-                : 'border-rule text-ink2 hover:border-accent hover:text-accentink'
+                ? 'border-gold bg-goldsoft text-goldink'
+                : 'border-rule text-ink2 hover:border-gold hover:text-goldink'
             }`}
           >
             <span
               aria-hidden
-              className={`inline-block h-2 w-2 rounded-full ${
-                watching ? 'animate-pulse bg-accent' : 'bg-muted'
+              className={`inline-block h-1.5 w-1.5 rounded-full ${
+                watching ? 'animate-pulse bg-gold' : 'bg-muted'
               }`}
             />
             {watching ? 'Слежу' : 'Следить и пикать'}
           </button>
-          <span className="font-mono text-[12px] text-muted tabular-nums">
-            ~{cost} из 10 000 квоты за скан
-          </span>
+
+          <button
+            type="button"
+            onClick={() => setShowSettings((s) => !s)}
+            className="border border-rule px-5 py-3 text-[15px] text-ink2 transition-colors hover:border-gold hover:text-goldink"
+          >
+            Настройки
+          </button>
+
+          <span className="nums text-[13px] text-muted">~{cost} квоты за скан</span>
         </div>
 
         {watching && (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xs border border-rule bg-surface px-4 py-3">
-            <span className="font-mono text-[12px] text-muted">Проверять каждые</span>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border border-rule bg-surface px-5 py-4">
+            <span className="label text-muted">Каждые</span>
             <input
               type="number"
               min={2}
@@ -330,18 +315,15 @@ export default function Page() {
               value={everyMin}
               onChange={(e) => setEveryMin(Number(e.target.value))}
               aria-label="Интервал проверки в минутах"
-              className="w-20 rounded-xs border border-rule bg-ground px-2 py-1 font-mono text-sm tabular-nums"
+              className="nums w-20 border border-rule bg-sunken px-3 py-1.5 text-[15px]"
             />
-            <span className="font-mono text-[12px] text-muted">мин</span>
-            <span className="font-mono text-[12px] text-muted tabular-nums">
-              ≈{Math.floor((1440 / Math.max(2, everyMin)) * cost).toLocaleString('ru-RU')} квоты в
-              сутки{' '}
-              {(1440 / Math.max(2, everyMin)) * cost > 10000 && (
-                <span className="text-hot">— не влезет, увеличь интервал</span>
-              )}
+            <span className="label text-muted">мин</span>
+            <span className="nums text-[13px] text-muted">
+              ≈{perDay.toLocaleString('ru-RU')} квоты в сутки
+              {perDay > 10000 && <span className="text-alert"> — не влезет</span>}
             </span>
             {nextAt && (
-              <span className="ml-auto font-mono text-[12px] text-muted tabular-nums">
+              <span className="nums text-[13px] text-muted">
                 следующая в {new Date(nextAt).toLocaleTimeString('ru-RU')}
               </span>
             )}
@@ -351,7 +333,7 @@ export default function Page() {
                 armSound()
                 setTimeout(playChime, 60)
               }}
-              className="rounded-xs border border-rule px-3 py-1 font-mono text-[11px] tracking-wide text-muted uppercase transition-colors hover:border-accent hover:text-accentink"
+              className="label ml-auto border border-rule px-3 py-2 text-muted transition-colors hover:border-gold hover:text-goldink"
             >
               Проверить звук
             </button>
@@ -359,110 +341,64 @@ export default function Page() {
         )}
 
         {freshCount > 0 && (
-          <p className="rounded-xs border border-accent bg-accentsoft px-4 py-2.5 text-sm text-accentink">
+          <p className="enter border-l border-gold bg-goldsoft px-5 py-3 text-[15px] text-goldink">
             Новых с прошлой проверки: <strong>{freshCount}</strong>
           </p>
         )}
       </header>
 
       {showSettings && (
-        <section className="flex flex-col gap-5 rounded-sm border border-rule bg-surface p-5">
-          <p className="font-mono text-[12px] text-muted">
-            {saved ? (
-              <span className="text-accentink">Сохранено</span>
-            ) : (
-              'Сохраняется само — отдельной кнопки нет'
-            )}
+        <section className="flex flex-col gap-7 border border-rule bg-surface p-6 sm:p-8">
+          <p className="label text-muted">
+            {saved ? <span className="text-goldink">Сохранено</span> : 'Сохраняется само'}
           </p>
-          <div className="flex flex-col gap-2">
-            <label htmlFor="queries" className="font-display text-base font-semibold">
-              Поисковые запросы
-            </label>
-            <p className="text-[13px] text-muted">
-              По одному в строке. Каждый запрос стоит 100 единиц квоты — это самая дорогая
-              часть скана. Пиши по-английски: ищем американскую аудиторию.
-            </p>
-            <textarea
-              id="queries"
-              value={queries}
-              onChange={(e) => setQueries(e.target.value)}
-              rows={8}
-              spellCheck={false}
-              className="rounded-xs border border-rule bg-ground p-3 font-mono text-[13px] leading-relaxed"
-            />
-          </div>
 
-          <div className="flex flex-col gap-2">
-            <label htmlFor="channels" className="font-display text-base font-semibold">
-              Каналы под наблюдением
-            </label>
-            <p className="text-[13px] text-muted">
-              По одной ссылке в строке — например{' '}
-              <span className="font-mono">https://www.youtube.com/@bitvalatam</span>. Годится и
-              просто <span className="font-mono">@bitvalatam</span>. Канал стоит 2 единицы
-              квоты против 100 за поисковый запрос, так что список можно держать длинным.
-            </p>
-            <textarea
-              id="channels"
-              value={channels}
-              onChange={(e) => setChannels(e.target.value)}
-              rows={5}
-              spellCheck={false}
-              placeholder="https://www.youtube.com/@handle"
-              className="rounded-xs border border-rule bg-ground p-3 font-mono text-[13px] leading-relaxed"
-            />
-          </div>
+          <Area
+            id="channels"
+            title="Каналы под наблюдением"
+            hint="По одной ссылке в строке. Годится и просто @handle. Канал стоит 2 единицы квоты против 100 за поисковый запрос — список можно держать длинным."
+            value={channels}
+            onChange={setChannels}
+            rows={10}
+            placeholder="https://www.youtube.com/@handle"
+          />
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field
-              id="days"
-              label="Глубина, дней"
-              hint="Комментарии старше этого срока отбрасываются"
-              value={days}
-              min={1}
-              max={365}
-              onChange={setDays}
-            />
-            <Field
-              id="perQuery"
-              label="Роликов на источник"
-              hint="Сколько брать с каждого запроса и с каждого канала"
-              value={perQuery}
-              min={1}
-              max={25}
-              onChange={setPerQuery}
-            />
-            <Field
-              id="minScore"
-              label="Порог баллов"
-              hint="Ниже порога комментарий не показывается"
-              value={minScore}
-              min={0}
-              max={100}
-              onChange={setMinScore}
-            />
+          <Area
+            id="queries"
+            title="Поисковые запросы"
+            hint="Нужны, только чтобы находить новые каналы и ролики вне списка. Каждый стоит 100 единиц — для ежедневной работы держи поле пустым."
+            value={queries}
+            onChange={setQueries}
+            rows={4}
+            placeholder="retire in Brazil"
+          />
+
+          <div className="grid gap-6 sm:grid-cols-3">
+            <Field id="days" label="Глубина, дней" hint="Комментарии старше отбрасываются" value={days} min={1} max={365} onChange={setDays} />
+            <Field id="perQuery" label="Роликов на источник" hint="С каждого канала и запроса" value={perQuery} min={1} max={50} onChange={setPerQuery} />
+            <Field id="minScore" label="Порог баллов" hint="Горячий от 60, тёплый от 38" value={minScore} min={0} max={100} onChange={setMinScore} />
           </div>
         </section>
       )}
 
       {error && (
-        <p className="rounded-sm border border-hot bg-hotsoft px-4 py-3 text-sm text-hot">
+        <p className="border-l border-alert bg-alertsoft px-5 py-4 text-[15px] text-alert">
           {error}
         </p>
       )}
 
       {translateError && (
-        <p className="rounded-sm border border-rule bg-surface px-4 py-3 text-sm text-muted">
+        <p className="border border-rule bg-surface px-5 py-4 text-[14px] text-muted">
           Перевод не работает: {translateError}
         </p>
       )}
 
       {result && (
         <>
-          <section className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-rule bg-rulesoft sm:grid-cols-4">
-            <Stat label="Найдено людей" value={result.prospects.length} />
+          <section className="grid grid-cols-2 gap-px border border-rule bg-rule sm:grid-cols-4">
+            <Stat label="Найдено людей" value={result.prospects.length} accent />
             <Stat label="Не обработано" value={counts.open} />
-            <Stat label="Свежих комментариев" value={result.stats.freshComments} />
+            <Stat label="Свежих реплик" value={result.stats.freshComments} />
             <Stat label="Роликов прочитано" value={result.stats.videosRead} />
           </section>
 
@@ -481,7 +417,7 @@ export default function Page() {
             <Tabs options={STATUS_TABS} value={statusFilter} onChange={setStatusFilter} />
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
             {visible.map((p) => (
               <ProspectCard
                 key={p.id}
@@ -493,28 +429,28 @@ export default function Page() {
               />
             ))}
             {visible.length === 0 && (
-              <p className="rounded-sm border border-dashed border-rule px-5 py-10 text-center text-sm text-muted">
+              <p className="border border-dashed border-rule px-6 py-16 text-center text-[15px] text-muted">
                 В этом срезе пусто. Смени фильтр или запусти скан заново.
               </p>
             )}
           </div>
 
-          <footer className="flex flex-col gap-1.5 border-t border-rule pt-5 font-mono text-[12px] text-muted tabular-nums">
+          <footer className="nums flex flex-col gap-2 border-t border-rule pt-6 text-[13px] text-muted">
             <p>
-              Скан {scannedAt ? new Date(scannedAt).toLocaleString('ru-RU') : '—'} · роликов
-              найдено {result.stats.videosFound} · комментариев просмотрено{' '}
-              {result.stats.commentsScanned} · квота {result.stats.quotaUsed} ·{' '}
-              {(result.stats.tookMs / 1000).toFixed(1)} с
+              Скан {scannedAt ? new Date(scannedAt).toLocaleString('ru-RU') : '—'} · каналов{' '}
+              {result.stats.channelsRead.length} · роликов найдено {result.stats.videosFound} ·
+              комментариев просмотрено {result.stats.commentsScanned} · квота{' '}
+              {result.stats.quotaUsed} · {(result.stats.tookMs / 1000).toFixed(1)} с
             </p>
             {result.errors.length > 0 && (
-              <p className="text-hot">Сбои: {result.errors.join(' · ')}</p>
+              <p className="text-alert">Сбои: {result.errors.join(' · ')}</p>
             )}
           </footer>
         </>
       )}
 
       {!result && !running && (
-        <p className="rounded-sm border border-dashed border-rule px-5 py-12 text-center text-sm text-muted">
+        <p className="border border-dashed border-rule px-6 py-20 text-center text-[15px] text-muted">
           Сканов ещё не было. Нажми «Запустить скан» — займёт секунд двадцать.
         </p>
       )}
@@ -522,13 +458,17 @@ export default function Page() {
   )
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
   return (
-    <div className="flex flex-col gap-1 bg-surface px-4 py-3.5">
-      <span className="font-mono text-[11px] tracking-[0.12em] text-muted uppercase">
-        {label}
+    <div className="flex flex-col gap-2 bg-surface px-5 py-5">
+      <span className="label text-muted">{label}</span>
+      <span
+        className={`nums font-display text-4xl leading-none font-light ${
+          accent ? 'text-goldink' : 'text-ink'
+        }`}
+      >
+        {value}
       </span>
-      <span className="font-display text-2xl font-bold tabular-nums">{value}</span>
     </div>
   )
 }
@@ -543,22 +483,58 @@ function Tabs<T extends string>({
   onChange: (v: T) => void
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-2">
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
           onClick={() => onChange(o.id)}
           aria-pressed={value === o.id}
-          className={`rounded-xs border px-3 py-1.5 font-mono text-[11px] tracking-wide uppercase transition-colors ${
+          className={`label border px-3.5 py-2 transition-colors ${
             value === o.id
-              ? 'border-accent bg-accentsoft text-accentink'
-              : 'border-rule text-muted hover:border-accent hover:text-accentink'
+              ? 'border-gold bg-goldsoft text-goldink'
+              : 'border-rule text-muted hover:border-gold hover:text-goldink'
           }`}
         >
           {o.label}
         </button>
       ))}
+    </div>
+  )
+}
+
+function Area({
+  id,
+  title,
+  hint,
+  value,
+  onChange,
+  rows,
+  placeholder,
+}: {
+  id: string
+  title: string
+  hint: string
+  value: string
+  onChange: (v: string) => void
+  rows: number
+  placeholder: string
+}) {
+  return (
+    <div className="flex flex-col gap-2.5">
+      <label htmlFor={id} className="font-display text-2xl font-normal">
+        {title}
+      </label>
+      <p className="max-w-[62ch] text-[14px] leading-relaxed text-muted">{hint}</p>
+      <textarea
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={rows}
+        spellCheck={false}
+        placeholder={placeholder}
+        className="border border-rule bg-sunken p-4 text-[13px] leading-relaxed text-ink2"
+      />
     </div>
   )
 }
@@ -581,8 +557,8 @@ function Field({
   onChange: (n: number) => void
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="font-display text-sm font-semibold">
+    <div className="flex flex-col gap-2">
+      <label htmlFor={id} className="label text-ink2">
         {label}
       </label>
       <input
@@ -592,9 +568,9 @@ function Field({
         max={max}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="rounded-xs border border-rule bg-ground px-3 py-2 font-mono text-sm tabular-nums"
+        className="nums border border-rule bg-sunken px-3 py-2.5 text-[15px]"
       />
-      <span className="text-[12px] text-muted">{hint}</span>
+      <span className="text-[13px] text-muted">{hint}</span>
     </div>
   )
 }

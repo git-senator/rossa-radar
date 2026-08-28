@@ -1,86 +1,108 @@
 @import 'tailwindcss';
 
+/*
+ * Палитра снята с brashouse.com — почти чёрный фон, холодный серый текст и
+ * золото как единственный акцент. Золото здесь работает и как знак «горячего»:
+ * заводить второй яркий цвет на золотом фоне значило бы драться с брендом.
+ */
 @theme {
-  --color-ground: #f1f3f5;
-  --color-surface: #ffffff;
-  --color-raised: #e6eaef;
-  --color-ink: #14181f;
-  --color-ink2: #3d4552;
-  --color-muted: #6e7783;
-  --color-rule: #d5dae1;
-  --color-rulesoft: #e3e7ec;
-  --color-accent: #8f6318;
-  --color-accentink: #8f6318;
-  --color-accentsoft: #f2e6cd;
-  --color-hot: #9c3b2b;
-  --color-hotsoft: #f6e1dc;
-  --color-warm: #8f6318;
-  --color-warmsoft: #f2e6cd;
-  --color-cold: #4a5a6b;
-  --color-coldsoft: #e2e7ec;
+  --color-ground: #050505;
+  --color-surface: #12161a;
+  --color-raised: #1d2226;
+  --color-sunken: #0b0e11;
+  --color-ink: #f5f5f5;
+  --color-ink2: #b8bcc2;
+  --color-muted: #61656b;
+  --color-rule: #22272b;
+  --color-rulesoft: #181b1e;
+  --color-gold: #c0a161;
+  --color-goldink: #cfb277;
+  --color-golddim: #8a7443;
+  --color-goldsoft: #1c1912;
+  --color-alert: #d08a68;
+  --color-alertsoft: #221812;
 
-  --font-display: var(--font-literata), Georgia, serif;
-  --font-sans: var(--font-commissioner), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-display: var(--font-cormorant), Georgia, 'Times New Roman', serif;
+  --font-sans: var(--font-figtree), var(--font-manrope), ui-sans-serif, system-ui,
+    'Segoe UI', sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --color-ground: #0f1319;
-    --color-surface: #161b23;
-    --color-raised: #1d232d;
-    --color-ink: #e9ecf1;
-    --color-ink2: #b4bcc7;
-    --color-muted: #868f9c;
-    --color-rule: #293039;
-    --color-rulesoft: #20262f;
-    --color-accent: #d9a751;
-    --color-accentink: #e5bb71;
-    --color-accentsoft: #2c2517;
-    --color-hot: #db7a67;
-    --color-hotsoft: #33201c;
-    --color-warm: #d9a751;
-    --color-warmsoft: #2c2517;
-    --color-cold: #8fa3b5;
-    --color-coldsoft: #1c242c;
+/*
+ * Светлая тема — производная, а не инверсия: фон и чернила меняются местами,
+ * золото темнеет, иначе на белом его не прочесть.
+ */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --color-ground: #f5f5f5;
+    --color-surface: #ffffff;
+    --color-raised: #eceff2;
+    --color-sunken: #e7eaee;
+    --color-ink: #16181a;
+    --color-ink2: #393b3e;
+    --color-muted: #6d7278;
+    --color-rule: #d9e1e6;
+    --color-rulesoft: #e7eaee;
+    --color-gold: #a8873f;
+    --color-goldink: #7d6229;
+    --color-golddim: #a89468;
+    --color-goldsoft: #f6f0e2;
+    --color-alert: #9c4a2b;
+    --color-alertsoft: #f7e9e2;
   }
 }
 
-:root[data-theme='dark'] {
-  --color-ground: #0f1319;
-  --color-surface: #161b23;
-  --color-raised: #1d232d;
-  --color-ink: #e9ecf1;
-  --color-ink2: #b4bcc7;
-  --color-muted: #868f9c;
-  --color-rule: #293039;
-  --color-rulesoft: #20262f;
-  --color-accent: #d9a751;
-  --color-accentink: #e5bb71;
-  --color-accentsoft: #2c2517;
-  --color-hot: #db7a67;
-  --color-hotsoft: #33201c;
-  --color-warm: #d9a751;
-  --color-warmsoft: #2c2517;
-  --color-cold: #8fa3b5;
-  --color-coldsoft: #1c242c;
+:root[data-theme='light'] {
+  --color-ground: #f5f5f5;
+  --color-surface: #ffffff;
+  --color-raised: #eceff2;
+  --color-sunken: #e7eaee;
+  --color-ink: #16181a;
+  --color-ink2: #393b3e;
+  --color-muted: #6d7278;
+  --color-rule: #d9e1e6;
+  --color-rulesoft: #e7eaee;
+  --color-gold: #a8873f;
+  --color-goldink: #7d6229;
+  --color-golddim: #a89468;
+  --color-goldsoft: #f6f0e2;
+  --color-alert: #9c4a2b;
+  --color-alertsoft: #f7e9e2;
 }
 
 html {
-  color-scheme: light dark;
+  color-scheme: dark light;
 }
 
 body {
   background: var(--color-ground);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  font-feature-settings: 'tnum' 0;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Мелкие подписи и цифры: капитель с разрядкой вместо моноширинного —
+   так спокойнее и ближе к сайту бренда. */
+.label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.nums {
+  font-variant-numeric: tabular-nums;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  border-radius: 2px;
+  outline: 1px solid var(--color-gold);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: var(--color-gold);
+  color: var(--color-ground);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -92,15 +114,24 @@ body {
   }
 }
 
+/* Луч радара — единственная анимация на странице, и та только пока идёт скан. */
 @keyframes radar-sweep {
-  from {
-    transform: rotate(0deg);
-  }
   to {
     transform: rotate(360deg);
   }
 }
 
 .sweep {
-  animation: radar-sweep 1.6s linear infinite;
+  animation: radar-sweep 1.5s linear infinite;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.enter {
+  animation: fade-up 0.35s ease-out both;
 }

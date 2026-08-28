@@ -7,71 +7,71 @@ import type { Prospect } from './types'
 const KEY = 'rossa-radar:translations:v1'
 
 /**
- * Russian translations of the comments, keyed by comment id.
- * Cached in the browser because a comment never changes — translating the same
- * text twice would just burn the model quota.
+ * Русские переводы комментариев, по id комментария.
+ *
+ * Кешируются в браузере: комментарий не меняется, и переводить один и тот же
+ * текст дважды значило бы жечь квоту модели впустую.
  */
 export function useTranslations() {
   const [map, setMap] = useState<Record<string, string>>({})
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const inFlight = useRef(new Set<string>())
+
+  /** Что уже перевели или отправили в перевод — чтобы не слать повторно. */
+  const handled = useRef<Set<string>>(new Set())
+  const loaded = useRef(false)
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(KEY)
-      if (raw) setMap(JSON.parse(raw) as Record<string, string>)
+      if (raw) {
+        const saved = JSON.parse(raw) as Record<string, string>
+        setMap(saved)
+        Object.keys(saved).forEach((id) => handled.current.add(id))
+      }
     } catch {
-      // blocked storage — translations just won't persist between visits
+      // хранилище закрыто — переводы просто не переживут перезагрузку
     }
+    loaded.current = true
   }, [])
 
   const translate = useCallback(async (prospects: Prospect[]) => {
-    const todo = prospects.filter((p) => !isRussian(p.text) && !inFlight.current.has(p.id))
+    // Русские не переводим, уже обработанные не трогаем.
+    const todo = prospects.filter((p) => !isRussian(p.text) && !handled.current.has(p.id))
     if (todo.length === 0) return
 
-    setMap((current) => {
-      const missing = todo.filter((p) => !current[p.id])
-      if (missing.length === 0) return current
+    todo.forEach((p) => handled.current.add(p.id))
+    setPending(true)
+    setError(null)
 
-      missing.forEach((p) => inFlight.current.add(p.id))
-      setPending(true)
-      setError(null)
+    try {
+      const res = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: todo.map((p) => ({ id: p.id, text: p.text })) }),
+      })
+      const data = (await res.json()) as {
+        translations?: Record<string, string>
+        error?: string
+      }
+      if (!res.ok || data.error) throw new Error(data.error ?? `Ошибка ${res.status}`)
 
-      void (async () => {
+      setMap((prev) => {
+        const next = { ...prev, ...(data.translations ?? {}) }
         try {
-          const res = await fetch('/api/translate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              items: missing.map((p) => ({ id: p.id, text: p.text })),
-            }),
-          })
-          const data = (await res.json()) as {
-            translations?: Record<string, string>
-            error?: string
-          }
-          if (!res.ok || data.error) throw new Error(data.error ?? `Ошибка ${res.status}`)
-
-          setMap((prev) => {
-            const next = { ...prev, ...(data.translations ?? {}) }
-            try {
-              localStorage.setItem(KEY, JSON.stringify(next))
-            } catch {
-              // cache is a nicety, not a requirement
-            }
-            return next
-          })
-        } catch (e) {
-          setError((e as Error).message)
-          missing.forEach((p) => inFlight.current.delete(p.id))
-        } finally {
-          setPending(false)
+          localStorage.setItem(KEY, JSON.stringify(next))
+        } catch {
+          // кеш — удобство, а не требование
         }
-      })()
-
-      return current
-    })
+        return next
+      })
+    } catch (e) {
+      setError((e as Error).message)
+      // Вернуть в очередь: следующий скан попробует ещё раз.
+      todo.forEach((p) => handled.current.delete(p.id))
+    } finally {
+      setPending(false)
+    }
   }, [])
 
   return { map, translate, pending, error }
