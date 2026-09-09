@@ -2,10 +2,18 @@ name: Обход каналов
 
 on:
   schedule:
-    # Каждые 30 минут. GitHub может задержать запуск при высокой нагрузке —
-    # это нормально, радар всё равно смотрит на несколько дней назад.
-    - cron: '*/30 * * * *'
-  workflow_dispatch: # можно запустить руками из вкладки Actions
+    # Частый обход — только каналы, шесть последних роликов у каждого: ~208
+    # единиц квоты. Раз в час, 24 раза в сутки ≈ 5 000.
+    - cron: '5 * * * *'
+    # Раз в сутки — полный: с поисковыми запросами и на всю глубину, ~1130
+    # единиц. 06:25 UTC — утро в Москве, ночь в Бразилии.
+    - cron: '25 6 * * *'
+  workflow_dispatch:
+    inputs:
+      deep:
+        description: 'Полный обход — ещё и поисковые запросы (дороже квоты)'
+        type: boolean
+        default: false
 
 # Нужен для коммита state/seen.json обратно в репозиторий.
 permissions:
@@ -31,6 +39,7 @@ jobs:
           RADAR_URL: ${{ secrets.RADAR_URL }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WITH_QUERIES: ${{ github.event.schedule == '25 6 * * *' || inputs.deep }}
         run: node scripts/watch.mjs
 
       - name: Запомнить показанных
@@ -40,6 +49,7 @@ jobs:
             git config user.email 'radar@users.noreply.github.com'
             git add state/
             git commit -m 'Память обхода'
+            git pull --rebase --autostash
             git push
           else
             echo 'Ничего нового — память не изменилась.'

@@ -24,6 +24,15 @@ if (!TOKEN || !CHAT) {
 
 const cfg = JSON.parse(readFileSync('watchlist.json', 'utf8'))
 
+/**
+ * Частый обход берёт только каналы: поисковый запрос стоит 100 единиц квоты
+ * против 2 за канал, а суточный потолок YouTube — 10 000 на всех, включая
+ * ручные сканы с сайта. Полный обход с запросами workflow включает раз в сутки.
+ */
+const DEEP = /^(1|true|yes)$/i.test(process.env.WITH_QUERIES ?? '')
+const perQuery = DEEP ? (cfg.perQuery ?? 15) : (cfg.watch?.perQuery ?? cfg.perQuery ?? 15)
+console.log(DEEP ? 'Полный обход: каналы и поисковые запросы.' : 'Частый обход: только каналы.')
+
 const seen = existsSync(SEEN_PATH)
   ? JSON.parse(readFileSync(SEEN_PATH, 'utf8'))
   : { ids: [] }
@@ -34,10 +43,10 @@ const res = await fetch(`${RADAR_URL}/api/scan`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    queries: cfg.queries ?? [],
+    queries: DEEP ? (cfg.queries ?? []) : [],
     channels: cfg.channels ?? [],
     days: cfg.days ?? 3,
-    perQuery: cfg.perQuery ?? 15,
+    perQuery,
     minScore: cfg.minScore ?? 25,
   }),
 })
