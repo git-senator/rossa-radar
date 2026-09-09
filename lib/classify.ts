@@ -305,9 +305,14 @@ const GEO =
  * О чём речь. Крупные травел-каналы обсуждают полмира, и без этой привязки
  * «а что будет в 2026 году?» под роликом про Францию набирало баллы наравне
  * с человеком, который спрашивает про квартиру во Флорианополисе.
+ *
+ * Оба языка держим вровень. Английская половина отставала: правило «планирует
+ * переезд» ловило `I will be moving to Brazil in January`, а тема — нет, потому
+ * что здесь были только русские «переезд» и «переехать». Живой лид с готовым
+ * сроком уходил в ноль.
  */
 const SUBJECT =
-  /(гражданств|внж|residency|визу|визы|виза\b|переезд|переехать|эмиграц|иммиграц|релокац|relocat|emigrat|immigrat|недвиг|недвижимост|квартир|апартамент|жиль[ёе]|участ\w+|студи|двушк|тр[её]шк|propert|apartment|real estate|condo|beachfront|house|home|аренд|снять|купить|buy|purchase|инвест|invest|пенси|retire)/i
+  /(гражданств|внж|citizenship|residency|визу|визы|виза\b|\bvisas?\b|переезд|переехать|эмиграц|иммиграц|релокац|relocat|emigrat|immigrat|\bmov(e|ing|ed)\b|\bexpat|\bsettl(e|ing)\b|недвиг|недвижимост|квартир|апартамент|жиль[ёе]|участ\w+|студи|двушк|тр[её]шк|propert|apartment|real estate|condo|beachfront|house|home|\bland\b|\bvilla\b|\bflat\b|аренд|снять|\brent(al|ing|s)?\b|купить|buy|purchase|инвест|invest|пенси|retire)/i
 
 export function classify(text: string, context = ''): Verdict {
   const seen = new Set<string>()
