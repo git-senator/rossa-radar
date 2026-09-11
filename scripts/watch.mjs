@@ -103,6 +103,11 @@ function clip(s, n) {
   return s.length > n ? `${s.slice(0, n - 1)}…` : s
 }
 
+/** Ссылку на канал автора YouTube отдаёт по http — лишний редирект на телефоне. */
+function https(u) {
+  return u.replace(/^http:\/\//, 'https://')
+}
+
 let sent = 0
 for (const p of fresh) {
   const ru = translations[p.id]
@@ -118,8 +123,6 @@ for (const p of fresh) {
     '',
     `${esc(p.author)} · ${p.publishedAt.slice(0, 10)}`,
     `Под роликом «${esc(clip(p.videoTitle, 90))}» — ${esc(p.channelTitle)}`,
-    '',
-    `<a href="${esc(p.url)}">Открыть комментарий</a>`,
   )
 
   const send = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
@@ -130,6 +133,23 @@ for (const p of fresh) {
       text: lines.join('\n'),
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true },
+      /**
+       * Кнопками, а не ссылкой в конце текста: карточка длинная, последняя
+       * строка в ней теряется, а по кнопке ещё и попадать пальцем легче.
+       *
+       * `p.url` уже содержит `lc` — YouTube по нему прокручивает к нужному
+       * комментарию и подсвечивает его. Вторая кнопка ведёт на канал автора:
+       * личных сообщений на YouTube нет, и канал — единственное, что о
+       * человеке вообще можно узнать до публичного ответа.
+       */
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '💬 Открыть комментарий', url: p.url },
+            ...(p.authorChannel ? [{ text: '👤 Автор', url: https(p.authorChannel) }] : []),
+          ],
+        ],
+      },
     }),
   })
 
