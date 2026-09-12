@@ -1,5 +1,9 @@
-import { classify, isOurLanguage } from './classify'
+import { judgeAll } from './judge'
+import { isOurLanguage } from './language'
 import type { Prospect, ScanConfig, ScanResult } from './types'
+
+/** Комментарий до оценки: всё поля лида, кроме балла и причины. */
+type CommentRow = Omit<Prospect, 'score' | 'heat' | 'signals'>
 
 const API = 'https://www.googleapis.com/youtube/v3/'
 
@@ -245,7 +249,8 @@ export async function scan(config: ScanConfig, key: string): Promise<ScanResult>
   let commentsScanned = 0
   let freshComments = 0
   let videosRead = 0
-  const prospects: Prospect[] = []
+  /** Всё свежее, что собрали. Балл появится ниже, после оценки моделью. */
+  const candidates: CommentRow[] = []
 
   await pooled([...videos.values()], 8, async (v) => {
     let d: ThreadsResponse
@@ -280,10 +285,7 @@ export async function scan(config: ScanConfig, key: string): Promise<ScanResult>
       const text = c.textDisplay.replace(/\s+/g, ' ').trim()
       if (!isOurLanguage(text)) continue
 
-      const { score, heat, signals } = classify(text, v.title)
-      if (score < config.minScore) continue
-
-      prospects.push({
+      candidates.push({
         id: th.id,
         text,
         author: c.authorDisplayName,
@@ -299,12 +301,25 @@ export async function scan(config: ScanConfig, key: string): Promise<ScanResult>
         // keeps mobile browsers on the web player, which is the only place
         // `lc` is honoured — the YouTube app silently ignores it.
         url: `https://www.youtube.com/watch?v=${v.id}&lc=${th.id}&app=desktop`,
-        score,
-        heat,
-        signals,
       })
     }
   })
+
+  // ---- 3. оценка: кто здесь клиент, решает модель -------------------------
+  // Свежие вперёд: если комментариев больше потолка одного скана, отрезать надо
+  // старые. Те, кого не успели посмотреть, вернутся следующим обходом — он
+  // каждый час, а окно свежести в днях, так что лид не теряется.
+  candidates.sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt))
+
+  const judged = await judgeAll(candidates)
+  errors.push(...judged.errors)
+
+  const prospects: Prospect[] = []
+  for (const c of candidates) {
+    const v = judged.verdicts.get(c.id)
+    if (!v || v.score < config.minScore) continue
+    prospects.push({ ...c, score: v.score, heat: v.heat, signals: v.signals })
+  }
 
   prospects.sort(
     (a, b) => b.score - a.score || +new Date(b.publishedAt) - +new Date(a.publishedAt),

@@ -1,0 +1,262 @@
+import type { Heat } from './types'
+
+/**
+ * Оценка комментариев моделью.
+ *
+ * До этого решали правила на регулярках, и они врали. В JavaScript `\b` и `\w`
+ * знают только латиницу: `/\bхочу/` не совпадает с «я хочу», а `/планиру\w*\s/`
+ * — с «планирую купить». Половина русских правил не срабатывала никогда, и
+ * «Я хочу купить квартиру в Бразилии» получало ноль. Живая речь вообще плохо
+ * ложится на регулярки: «вот бы нам туда, да денег бы хватило» не поймает
+ * никакое правило.
+ *
+ * Теперь решает модель — она видит смысл, а не буквы, и работает на любом языке.
+ *
+ * Регулярка осталась ровно одна, в `worthAsking`, и у неё обратная задача: не
+ * отобрать лидов, а отбросить заведомо пустое, чтобы влезть в лимит токенов.
+ */
+
+const DEFAULT_BASE = 'https://api.groq.com/openai/v1'
+const DEFAULT_MODEL = 'openai/gpt-oss-120b'
+
+/**
+ * Дюжина за запрос — компромисс, найденный замерами. Крупнее: ответный JSON не
+ * влезает в отведённые токены и обрывается на середине, сервис возвращает 400.
+ * Мельче: системная подсказка уходит с каждым запросом и умножается на их число.
+ */
+const BATCH = 12
+
+/** Два запроса разом. Больше — упираемся не в Vercel, а в лимит токенов. */
+const PARALLEL = 2
+
+/** Дольше не ждём: лучше отдать часть, чем словить таймаут функции. */
+const BUDGET_MS = 35_000
+
+/** Комментарии длиннее обрезаем: смысл виден в начале, токены не бесконечны. */
+const MAX_CHARS = 700
+
+/** Короткие реплики — «спасибо», «❤❤❤» — спрашивать не о чем. */
+const MIN_CHARS = 25
+
+/** Потолок на один скан, чтобы минутный лимит не кончился на первой пачке. */
+const MAX_JUDGED = 140
+
+/**
+ * Единственный грубый отсев перед моделью: в комментарии должно быть хоть одно
+ * слово про переезд, покупку, деньги или документы — на любом из трёх языков.
+ *
+ * Это фильтр на полноту, а не на точность. Он не пытается понять, кто здесь
+ * клиент: достаточно одного слова в любом месте текста, без порядка слов, без
+ * расстояний и без `\b` рядом с кириллицей — ровно на этом и ломались прежние
+ * правила. На живом корпусе из 517 комментариев остаётся около сорока, и все
+ * известные лиды в них сохраняются.
+ */
+const TOPICAL =
+  /(plan|planning|want|thinking|consider|hoping|looking|move|moving|relocat|retir|emigrat|immigrat|expat|buy|buying|purchase|afford|budget|price|cost|mortgage|visa|citizenship|residency|how (much|do|can|would)|переезд|переехать|перебра|релокац|хочу|хотим|планиру|собира|думаю|ищу|подыскива|куплю|купить|приобрест|недвиж|квартир|жиль|участок|аренд|снять|сколько стоит|сколько будет|цена|цены|почём|бюджет|подскажите|реально ли|как получить|внж|гражданств|пенси)/i
+
+/**
+ * Коротко намеренно: подсказка уходит с каждой пачкой, а на бесплатном Groq
+ * всего 8 000 токенов в минуту. Каждая лишняя строка здесь умножается на число
+ * запросов и съедает те комментарии, которые иначе успели бы оценить.
+ */
+const SYSTEM = `Ты оцениваешь комментарии под ютуб-роликами для агентства, которое продаёт недвижимость в Бразилии и помогает иностранцам туда переехать.
+
+Поставь каждому комментарию балл 0-100: насколько его автор — потенциальный клиент.
+
+60-100: говорит о себе и собирается действовать — переезд, покупка, цены, условия для иностранцев, срок, бюджет, просит связаться.
+30-59: личный интерес размытый — «когда-нибудь хочу», ещё выбирает страну или город.
+0-29: не о себе или не наш — местный, давно живёт в Бразилии, спорит, хвалит ролик, шутит, рекламирует себя.
+
+Правила: нужна именно Бразилия, Уругвай и Аргентина не наши; бразилец, который возвращается домой, — наш; кто годы живёт в Бразилии — нет; риелторы и конкуренты — нет. Язык любой, название ролика дано как контекст. Нет личного интереса — ставь 0, а не 20.
+
+«почему» — одна короткая фраза по-русски о том, что именно убедило, не длиннее восьми слов. Без общих слов.
+
+Ответь ТОЛЬКО объектом JSON вида {"оценки":{"<id>":{"балл":<число>,"почему":"<фраза>"}}} и оцени каждый комментарий.`
+
+export interface Verdict {
+  score: number
+  heat: Heat
+  signals: string[]
+}
+
+export interface Candidate {
+  id: string
+  text: string
+  /** Название ролика — модели нужен контекст, о какой стране речь. */
+  videoTitle: string
+}
+
+/** Стоит ли вообще спрашивать модель про этот комментарий. */
+export function worthAsking(text: string): boolean {
+  return text.length >= MIN_CHARS && TOPICAL.test(text)
+}
+
+function heatOf(score: number): Heat {
+  return score >= 60 ? 'hot' : score >= 38 ? 'warm' : 'cold'
+}
+
+interface Config {
+  key: string
+  base: string
+  model: string
+}
+
+function config(): Config {
+  // Отдельные JUDGE_*, если оценку захочется развести с переводом по моделям;
+  // по умолчанию берём то же, на чём работает перевод.
+  const key = process.env.JUDGE_API_KEY || process.env.TRANSLATE_API_KEY
+  if (!key) {
+    throw new Error(
+      'Нужен JUDGE_API_KEY или TRANSLATE_API_KEY — без модели оценивать комментарии нечем.',
+    )
+  }
+  return {
+    key,
+    base: process.env.JUDGE_API_BASE || process.env.TRANSLATE_API_BASE || DEFAULT_BASE,
+    model: process.env.JUDGE_MODEL || process.env.TRANSLATE_MODEL || DEFAULT_MODEL,
+  }
+}
+
+/** Сколько ждать после отказа по лимиту. Сервис сам говорит, сколько. */
+function retryAfterMs(res: Response): number {
+  const header = res.headers.get('retry-after') ?? res.headers.get('x-ratelimit-reset-tokens')
+  if (!header) return 4000
+  const seconds = Number.parseFloat(header.replace(/[^\d.]/g, ''))
+  return Number.isFinite(seconds) ? Math.min(20_000, Math.max(1000, seconds * 1000)) : 4000
+}
+
+async function ask(batch: Candidate[], cfg: Config): Promise<Response> {
+  const payload = batch.map((c) => ({
+    id: c.id,
+    ролик: c.videoTitle.slice(0, 120),
+    комментарий: c.text.slice(0, MAX_CHARS),
+  }))
+
+  return fetch(`${cfg.base}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.key}` },
+    body: JSON.stringify({
+      model: cfg.model,
+      temperature: 0,
+      // Groq вычитает из минутного лимита заявленный max_tokens, а не
+      // фактическую длину ответа. Со «щедрым» запасом два параллельных запроса
+      // съедали все 8 000 ещё до того, как модель успевала ответить. Считаем по
+      // размеру пачки: на комментарий уходит балл и короткая фраза.
+      max_tokens: 200 + batch.length * 90,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: SYSTEM },
+        { role: 'user', content: JSON.stringify(payload) },
+      ],
+    }),
+    cache: 'no-store',
+  })
+}
+
+async function judgeBatch(
+  batch: Candidate[],
+  cfg: Config,
+  deadline: number,
+): Promise<Map<string, Verdict>> {
+  let res = await ask(batch, cfg)
+
+  // Минутный лимит токенов — штатная ситуация, а не поломка: подождём и
+  // спросим ещё раз, если на это осталось время.
+  if (res.status === 429) {
+    const wait = retryAfterMs(res)
+    if (Date.now() + wait > deadline) {
+      throw new Error('лимит токенов, ждать дольше бюджета скана')
+    }
+    await new Promise((r) => setTimeout(r, wait))
+    res = await ask(batch, cfg)
+  }
+
+  if (!res.ok) {
+    throw new Error(`оценка ${res.status}: ${(await res.text()).slice(0, 160)}`)
+  }
+
+  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(data.choices?.[0]?.message?.content ?? '{}')
+  } catch {
+    throw new Error('модель ответила не JSON')
+  }
+
+  const box = parsed as Record<string, unknown>
+  const dict = (box.оценки ?? box.scores ?? box) as Record<string, unknown>
+
+  const out = new Map<string, Verdict>()
+  for (const c of batch) {
+    const row = dict?.[c.id] as Record<string, unknown> | undefined
+    if (!row) continue
+    const score = Math.round(Number(row.балл ?? row.score))
+    if (!Number.isFinite(score)) continue
+    const why = String(row.почему ?? row.why ?? '').trim()
+    out.set(c.id, {
+      score: Math.max(0, Math.min(100, score)),
+      heat: heatOf(Math.max(0, Math.min(100, score))),
+      signals: why ? [why] : [],
+    })
+  }
+  return out
+}
+
+export interface JudgeResult {
+  verdicts: Map<string, Verdict>
+  errors: string[]
+  /** Сколько отправили модели — для статистики скана. */
+  asked: number
+}
+
+/**
+ * Оценивает комментарии. Сбой отдельной пачки не валит обход: неоценённое
+ * вернётся нулём, причина попадёт в `errors`, а сами комментарии пересмотрит
+ * следующий обход — он идёт каждый час, окно свежести в днях, так что лид
+ * не теряется.
+ */
+export async function judgeAll(candidates: Candidate[]): Promise<JudgeResult> {
+  const cfg = config()
+  const verdicts = new Map<string, Verdict>()
+  const errors: string[] = []
+
+  const worth = candidates.filter((c) => worthAsking(c.text))
+  const overflow = Math.max(0, worth.length - MAX_JUDGED)
+  const queue = worth.slice(0, MAX_JUDGED)
+
+  const batches: Candidate[][] = []
+  for (let i = 0; i < queue.length; i += BATCH) batches.push(queue.slice(i, i + BATCH))
+
+  const deadline = Date.now() + BUDGET_MS
+  let cursor = 0
+  let unseen = 0
+
+  await Promise.all(
+    Array.from({ length: Math.min(PARALLEL, batches.length) }, async () => {
+      while (cursor < batches.length) {
+        const batch = batches[cursor++]
+        if (Date.now() > deadline) {
+          unseen += batch.length
+          continue
+        }
+        try {
+          for (const [id, v] of await judgeBatch(batch, cfg, deadline)) verdicts.set(id, v)
+        } catch (e) {
+          unseen += batch.length
+          errors.push((e as Error).message)
+        }
+      }
+    }),
+  )
+
+  if (unseen > 0) errors.push(`не оценено комментариев: ${unseen}`)
+  if (overflow > 0) errors.push(`сверх потолка ${MAX_JUDGED} отложено: ${overflow}`)
+
+  // Одинаковые сбои пачек схлопываем — в логе хватит строки на причину.
+  const seen = new Set<string>()
+  return {
+    verdicts,
+    errors: errors.filter((e) => (seen.has(e) ? false : (seen.add(e), true))),
+    asked: queue.length,
+  }
+}

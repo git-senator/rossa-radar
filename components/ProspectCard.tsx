@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { isRussian } from '@/lib/classify'
+import { isRussian } from '@/lib/language'
 import type { Prospect } from '@/lib/types'
 import type { Status } from '@/lib/status'
 import { STATUSES } from '@/lib/status'

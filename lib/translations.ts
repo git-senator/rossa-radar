@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { isRussian } from './classify'
+import { isRussian } from './language'
 import type { Prospect } from './types'
 
 const KEY = 'rossa-radar:translations:v1'
