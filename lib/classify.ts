@@ -129,7 +129,10 @@ const RULES: Rule[] = [
   // ================= negative =================
   // Locals telling foreigners to stay away — the loudest group in the data.
   {
-    re: /\b(don'?t come|do not come|stay away|go back|you'?re not welcome|unwelcome|disgusting|gringo|colonizer|gentrif\w+|ruining|destroying (our|the)|it'?s a lie|fucked up|what happened to the american dream|don'?t advertise)\b|\blocals? (can'?t|cannot)\b|\bnow you come here\b/i,
+    // «go back» только с адресатом: местный гонит домой. Без этого правило
+    // било по бразильцам, которые возвращаются — «go back to our beloved Brazil»
+    // это лид, а не враждебность.
+    re: /\b(don'?t come|do not come|stay away|go back (home|to (your|where))|you'?re not welcome|unwelcome|disgusting|gringo|colonizer|gentrif\w+|ruining|destroying (our|the)|it'?s a lie|fucked up|what happened to the american dream|don'?t advertise)\b|\blocals? (can'?t|cannot)\b|\bnow you come here\b/i,
     points: -55,
     label: 'враждебный комментарий',
     kind: 'minus',
@@ -312,7 +315,7 @@ const GEO =
  * сроком уходил в ноль.
  */
 const SUBJECT =
-  /(гражданств|внж|citizenship|residency|визу|визы|виза\b|\bvisas?\b|переезд|переехать|эмиграц|иммиграц|релокац|relocat|emigrat|immigrat|\bmov(e|ing|ed)\b|\bexpat|\bsettl(e|ing)\b|недвиг|недвижимост|квартир|апартамент|жиль[ёе]|участ\w+|студи|двушк|тр[её]шк|propert|apartment|real estate|condo|beachfront|house|home|\bland\b|\bvilla\b|\bflat\b|аренд|снять|\brent(al|ing|s)?\b|купить|buy|purchase|инвест|invest|пенси|retire)/i
+  /(гражданств|внж|citizenship|residency|визу|визы|виза\b|\bvisas?\b|переезд|переехать|эмиграц|иммиграц|релокац|relocat|emigrat|immigrat|\bmov(e|ing|ed)\b|\bexpat|\bsettl(e|ing)\b|недвиг|недвижимост|квартир|апартамент|жиль[ёе]|участ\w+|студи|двушк|тр[её]шк|propert|apartment|real estate|condo|beachfront|house|home|\bland\b|\bvilla\b|\bflat\b|аренд|снять|\brent(al|ing|s)?\b|купить|buy|purchase|инвест|invest|пенси|retir)/i
 
 export function classify(text: string, context = ''): Verdict {
   const seen = new Set<string>()
