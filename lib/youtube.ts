@@ -332,6 +332,7 @@ export async function scan(config: ScanConfig, key: string): Promise<ScanResult>
       videosRead,
       commentsScanned,
       freshComments,
+      judged: judged.asked,
       quotaUsed: counter.quota,
       tookMs: Date.now() - started,
       since: since.toISOString(),

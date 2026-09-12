@@ -60,6 +60,7 @@ const { prospects = [], stats = {}, errors = [] } = await res.json()
 if (errors.length) console.warn('Сбои при обходе:', errors.join(' | '))
 console.log(
   `Обход: роликов ${stats.videosRead}, свежих комментариев ${stats.freshComments}, ` +
+    `оценено моделью ${stats.judged}, ` +
     `найдено ${prospects.length}, квота ${stats.quotaUsed}`,
 )
 

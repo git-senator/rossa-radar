@@ -399,6 +399,7 @@ export default function Page() {
             <Stat label="Найдено людей" value={result.prospects.length} accent />
             <Stat label="Не обработано" value={counts.open} />
             <Stat label="Свежих реплик" value={result.stats.freshComments} />
+            <Stat label="Оценено моделью" value={result.stats.judged} />
             <Stat label="Роликов прочитано" value={result.stats.videosRead} />
           </section>
 

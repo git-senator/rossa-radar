@@ -44,6 +44,8 @@ export interface ScanResult {
     videosRead: number
     commentsScanned: number
     freshComments: number
+    /** Сколько свежих комментариев дошло до модели после грубого отсева. */
+    judged: number
     quotaUsed: number
     tookMs: number
     since: string
