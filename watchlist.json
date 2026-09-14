@@ -1,28 +1,28 @@
 {
   "_": "Что радар обходит круглосуточно. Правится текстом прямо здесь — код трогать не надо. Каналы можно писать ссылкой, @хэндлом или id.",
-
-  "_channels": "Только англоязычные каналы из США и Канады, где живые люди обсуждают переезд, недвижимость, инвестиции и ВНЖ в Бразилии, Аргентине и Парагвае. Отобраны замером: страна канала, свежесть роликов, сколько из последних двадцати названий про наши три страны и сколько комментариев под ними собирается.",
+  "_channels": "Каналы отобраны замером, а не на глаз: по каждому считались дата последнего ролика, доля последних названий про Бразилию, Аргентину и Парагвай, число комментариев и сколько из них модель признала квалифицированными лидами. Выброшены мёртвые (полгода без роликов) и тревел-каналы: комментариев под ними много, лидов нет, а бюджет модели они съедают целиком.",
   "channels": [
+    "https://www.youtube.com/@nordicinvestor",
+    "https://www.youtube.com/@paraguaymike5159",
+    "https://www.youtube.com/@growabroadre",
+    "https://www.youtube.com/@graemelamperson91",
+    "https://www.youtube.com/@andysadventuresbrl",
+    "https://www.youtube.com/@baseinparaguay",
     "https://www.youtube.com/@livingabroadwitheric",
     "https://www.youtube.com/@argentinaattorneylawyer",
     "https://www.youtube.com/@oliveiralawyers",
+    "https://www.youtube.com/@merkulov.realparaguay",
+    "https://www.youtube.com/@nomadicsean",
+    "https://www.youtube.com/@mgni_brokers",
     "https://www.youtube.com/@nomadelite",
     "https://www.youtube.com/@worldwisecapital",
-    "https://www.youtube.com/@nomadicsean",
     "https://www.youtube.com/@thefirstclasscitizen",
     "https://www.youtube.com/@livinginlatam",
-    "https://www.youtube.com/@merkulov.realparaguay",
     "https://www.youtube.com/@mylatinlife",
-    "https://www.youtube.com/@onlythesavvy",
-    "https://www.youtube.com/@chanelmaee",
     "https://www.youtube.com/@evolutionexpats",
-    "https://www.youtube.com/@retireabroadliving",
-    "https://www.youtube.com/@adventurefreaksss",
-    "https://www.youtube.com/@stefanocreatini",
     "https://www.youtube.com/@globalcitizensolutions",
-    "https://www.youtube.com/@vagabondawake"
+    "https://www.youtube.com/@stefanocreatini"
   ],
-
   "_queries": "Запросы только по-английски: покупатель приходит из США и Канады. Каждый стоит 100 единиц квоты, поэтому в частом обходе они выключены, а в суточном идут все.",
   "queries": [
     "buying property in Brazil as a foreigner",
@@ -34,22 +34,17 @@
     "retire in South America American expat",
     "invest in South America real estate foreigner"
   ],
-
   "_days": "За сколько последних дней брать комментарии.",
   "days": 3,
-
   "_perQuery": "Сколько роликов брать с каждого канала и с каждого запроса.",
   "perQuery": 15,
-
   "_minScore": "Ниже этого балла комментарий вообще не рассматривается.",
   "minScore": 25,
-
   "_watch": "Круглосуточный обход по расписанию. Суточная квота YouTube — жёсткие 10 000 единиц на всех, включая ручные сканы с сайта. Поэтому частый обход берёт только каналы и неглубоко, а полный, с поисковыми запросами, идёт раз в сутки.",
   "watch": {
     "_perQuery": "Сколько последних роликов канала смотреть в частом обходе. Меньше — дешевле.",
     "perQuery": 6
   },
-
   "_notifyFrom": "А вот отсюда уже присылать в Telegram. 60 — только квалифицированные, 38 — и размытые тоже.",
   "notifyFrom": 60
 }

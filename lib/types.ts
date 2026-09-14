@@ -74,24 +74,26 @@ export const DEFAULT_QUERIES = [
  * три страны и число комментариев под последними выпусками.
  */
 export const DEFAULT_CHANNELS = [
+  'https://www.youtube.com/@nordicinvestor',
+  'https://www.youtube.com/@paraguaymike5159',
+  'https://www.youtube.com/@growabroadre',
+  'https://www.youtube.com/@graemelamperson91',
+  'https://www.youtube.com/@andysadventuresbrl',
+  'https://www.youtube.com/@baseinparaguay',
   'https://www.youtube.com/@livingabroadwitheric',
   'https://www.youtube.com/@argentinaattorneylawyer',
   'https://www.youtube.com/@oliveiralawyers',
+  'https://www.youtube.com/@merkulov.realparaguay',
+  'https://www.youtube.com/@nomadicsean',
+  'https://www.youtube.com/@mgni_brokers',
   'https://www.youtube.com/@nomadelite',
   'https://www.youtube.com/@worldwisecapital',
-  'https://www.youtube.com/@nomadicsean',
   'https://www.youtube.com/@thefirstclasscitizen',
   'https://www.youtube.com/@livinginlatam',
-  'https://www.youtube.com/@merkulov.realparaguay',
   'https://www.youtube.com/@mylatinlife',
-  'https://www.youtube.com/@onlythesavvy',
-  'https://www.youtube.com/@chanelmaee',
   'https://www.youtube.com/@evolutionexpats',
-  'https://www.youtube.com/@retireabroadliving',
-  'https://www.youtube.com/@adventurefreaksss',
-  'https://www.youtube.com/@stefanocreatini',
   'https://www.youtube.com/@globalcitizensolutions',
-  'https://www.youtube.com/@vagabondawake',
+  'https://www.youtube.com/@stefanocreatini',
 ]
 
 export const DEFAULT_CONFIG: ScanConfig = {
