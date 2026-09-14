@@ -125,6 +125,19 @@ function retryAfterMs(res: Response): number {
   return Number.isFinite(seconds) ? Math.min(20_000, Math.max(1000, seconds * 1000)) : 4000
 }
 
+/**
+ * Рассуждающие модели тратят на внутренние размышления ту же квоту, что и на
+ * ответ. У gpt-oss-120b из 1280 отведённых токенов 1143 уходило на рассуждения,
+ * и на сам JSON оставалось меньше полутора сотен: ответ обрывался на четвёртой
+ * оценке из двенадцати, а иногда посреди строки — тогда сервис возвращал 400.
+ * С низким усилием рассуждения занимают ~220 токенов, ответ помещается целиком
+ * и приходит вдвое быстрее. Работа здесь простая, глубоко думать не над чем.
+ *
+ * Параметр понимают не все совместимые сервисы, поэтому при отказе именно из-за
+ * него переключаемся на запросы без него и больше не пробуем.
+ */
+let reasoningEffort: 'low' | null = 'low'
+
 async function ask(batch: Candidate[], cfg: Config): Promise<Response> {
   const payload = batch.map((c) => ({
     id: c.id,
@@ -138,6 +151,7 @@ async function ask(batch: Candidate[], cfg: Config): Promise<Response> {
     body: JSON.stringify({
       model: cfg.model,
       temperature: 0,
+      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
       // Groq вычитает из минутного лимита заявленный max_tokens, а не
       // фактическую длину ответа. Со «щедрым» запасом два параллельных запроса
       // съедали все 8 000 ещё до того, как модель успевала ответить. Считаем по
@@ -172,7 +186,17 @@ async function judgeBatch(
   }
 
   if (!res.ok) {
-    throw new Error(`оценка ${res.status}: ${(await res.text()).slice(0, 160)}`)
+    const body = await res.text()
+    // Сервис не знает про reasoning_effort — снимаем его и спрашиваем заново.
+    if (res.status === 400 && /reasoning_effort/i.test(body) && reasoningEffort) {
+      reasoningEffort = null
+      res = await ask(batch, cfg)
+      if (!res.ok) {
+        throw new Error(`оценка ${res.status}: ${(await res.text()).slice(0, 160)}`)
+      }
+    } else {
+      throw new Error(`оценка ${res.status}: ${body.slice(0, 160)}`)
+    }
   }
 
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
@@ -205,8 +229,12 @@ async function judgeBatch(
 export interface JudgeResult {
   verdicts: Map<string, Verdict>
   errors: string[]
-  /** Сколько отправили модели — для статистики скана. */
-  asked: number
+  /**
+   * Сколько комментариев модель реально оценила — не сколько отправили. Разница
+   * важная: при обрыве ответа половина пачки остаётся без вердикта, и если
+   * показывать отправленные, потеря выглядит как успешная работа.
+   */
+  judged: number
 }
 
 /**
@@ -257,6 +285,6 @@ export async function judgeAll(candidates: Candidate[]): Promise<JudgeResult> {
   return {
     verdicts,
     errors: errors.filter((e) => (seen.has(e) ? false : (seen.add(e), true))),
-    asked: queue.length,
+    judged: verdicts.size,
   }
 }
