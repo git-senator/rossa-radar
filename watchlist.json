@@ -1,43 +1,38 @@
 {
   "_": "Что радар обходит круглосуточно. Правится текстом прямо здесь — код трогать не надо. Каналы можно писать ссылкой, @хэндлом или id.",
 
+  "_channels": "Только англоязычные каналы из США и Канады, где живые люди обсуждают переезд, недвижимость, инвестиции и ВНЖ в Бразилии, Аргентине и Парагвае. Отобраны замером: страна канала, свежесть роликов, сколько из последних двадцати названий про наши три страны и сколько комментариев под ними собирается.",
   "channels": [
-    "https://www.youtube.com/@sizova_k",
-    "https://www.youtube.com/@chechetkin_tut",
-    "https://www.youtube.com/@taropizhka",
-    "https://www.youtube.com/@kirill_brasil",
-    "https://www.youtube.com/@balakina_brazil",
-    "https://www.youtube.com/@lenainbrazil",
-    "https://www.youtube.com/@geonevazhno",
-    "https://www.youtube.com/@adveeenturers",
-    "https://www.youtube.com/@lomfam",
-    "https://www.youtube.com/@buzo",
-    "https://www.youtube.com/@bitvalatam",
-    "https://www.youtube.com/@elenji_brazil",
-    "https://www.youtube.com/@brazilpapa",
-    "https://www.youtube.com/@svoibrazil",
-    "https://www.youtube.com/@kamal_salbitti",
-    "https://www.youtube.com/@katia.brazil",
-    "https://www.youtube.com/@dyakonovm",
-    "https://www.youtube.com/@invest_in_brazil",
-    "https://www.youtube.com/@legacy_house_brazil",
-    "https://www.youtube.com/@vadim_from_uru",
-    "https://www.youtube.com/@mashkevichlife",
-    "https://www.youtube.com/@shotaowl",
-    "https://www.youtube.com/@nestrashno",
-    "https://www.youtube.com/@varlamov.travel",
-    "https://www.youtube.com/@jastravelalex",
-    "https://www.youtube.com/@vova.karmanov"
+    "https://www.youtube.com/@livingabroadwitheric",
+    "https://www.youtube.com/@argentinaattorneylawyer",
+    "https://www.youtube.com/@oliveiralawyers",
+    "https://www.youtube.com/@nomadelite",
+    "https://www.youtube.com/@worldwisecapital",
+    "https://www.youtube.com/@nomadicsean",
+    "https://www.youtube.com/@thefirstclasscitizen",
+    "https://www.youtube.com/@livinginlatam",
+    "https://www.youtube.com/@merkulov.realparaguay",
+    "https://www.youtube.com/@mylatinlife",
+    "https://www.youtube.com/@onlythesavvy",
+    "https://www.youtube.com/@chanelmaee",
+    "https://www.youtube.com/@evolutionexpats",
+    "https://www.youtube.com/@retireabroadliving",
+    "https://www.youtube.com/@adventurefreaksss",
+    "https://www.youtube.com/@stefanocreatini",
+    "https://www.youtube.com/@globalcitizensolutions",
+    "https://www.youtube.com/@vagabondawake"
   ],
 
-  "_queries": "Ищем на двух языках — английском и русском.",
+  "_queries": "Запросы только по-английски: покупатель приходит из США и Канады. Каждый стоит 100 единиц квоты, поэтому в частом обходе они выключены, а в суточном идут все.",
   "queries": [
-    "retire in Brazil",
-    "moving to Brazil from USA",
-    "buying property in Brazil foreigner",
-    "living in Florianopolis Brazil expat",
-    "переезд в Бразилию",
-    "недвижимость в Бразилии для иностранцев"
+    "buying property in Brazil as a foreigner",
+    "Brazil permanent residency visa American",
+    "moving to Argentina from USA expat",
+    "buying real estate in Argentina foreigner",
+    "Paraguay residency for Americans",
+    "living in Paraguay expat cost of living",
+    "retire in South America American expat",
+    "invest in South America real estate foreigner"
   ],
 
   "_days": "За сколько последних дней брать комментарии.",
@@ -49,12 +44,12 @@
   "_minScore": "Ниже этого балла комментарий вообще не рассматривается.",
   "minScore": 25,
 
-  "_watch": "Круглосуточный обход по расписанию. Суточная квота YouTube — жёсткие 10 000 единиц на всех, включая ручные сканы с сайта. Поэтому частый обход берёт только каналы и неглубоко (~208 единиц), а полный, с поисковыми запросами, идёт раз в сутки (~1130).",
+  "_watch": "Круглосуточный обход по расписанию. Суточная квота YouTube — жёсткие 10 000 единиц на всех, включая ручные сканы с сайта. Поэтому частый обход берёт только каналы и неглубоко, а полный, с поисковыми запросами, идёт раз в сутки.",
   "watch": {
     "_perQuery": "Сколько последних роликов канала смотреть в частом обходе. Меньше — дешевле.",
     "perQuery": 6
   },
 
-  "_notifyFrom": "А вот отсюда уже присылать в Telegram. 60 — только горячие, 38 — и тёплые тоже.",
-  "notifyFrom": 38
+  "_notifyFrom": "А вот отсюда уже присылать в Telegram. 60 — только квалифицированные, 38 — и размытые тоже.",
+  "notifyFrom": 60
 }

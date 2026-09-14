@@ -55,75 +55,43 @@ export interface ScanResult {
   errors: string[]
 }
 
-/** Два языка, на которых ищем покупателей: английский и русский. */
+/** Покупатель приходит из США и Канады, поэтому запросы только английские. */
 export const DEFAULT_QUERIES = [
-  'retire in Brazil',
-  'moving to Brazil from USA',
-  'cost of living in Brazil',
-  'buying property in Brazil foreigner',
-  'living in Florianopolis Brazil expat',
-  'why I moved to Brazil American',
-  'переезд в Бразилию',
-  'жизнь в Бразилии цены',
-  'недвижимость в Бразилии для иностранцев',
-  'ВНЖ Бразилия как получить',
+  'buying property in Brazil as a foreigner',
+  'Brazil permanent residency visa American',
+  'moving to Argentina from USA expat',
+  'buying real estate in Argentina foreigner',
+  'Paraguay residency for Americans',
+  'living in Paraguay expat cost of living',
+  'retire in South America American expat',
+  'invest in South America real estate foreigner',
 ]
 
 /**
- * Каналы, отобранные разведкой: сначала считалась не популярность, а
- * разговорчивость — сколько комментариев приходится на тысячу просмотров.
- * Сверху англоязычные (аудитория на два порядка крупнее), ниже русские.
+ * Англоязычные каналы из США и Канады, где живые люди обсуждают переезд,
+ * недвижимость, инвестиции и ВНЖ в Бразилии, Аргентине и Парагвае. Список
+ * собран замером: страна канала, свежесть роликов, доля названий про наши
+ * три страны и число комментариев под последними выпусками.
  */
 export const DEFAULT_CHANNELS = [
-  // — США: переезд в Бразилию, жизнь, недвижимость
-  'https://www.youtube.com/@andysadventuresbrl',
-  'https://www.youtube.com/@nordicinvestor',
-  'https://www.youtube.com/@ourbrazilianlife',
   'https://www.youtube.com/@livingabroadwitheric',
-  'https://www.youtube.com/@brazilusaconnection',
-  'https://www.youtube.com/@travelingwithkristin',
-  'https://www.youtube.com/@adventurefreaksss',
-  'https://www.youtube.com/@gringorecifence',
-  'https://www.youtube.com/@livingwiseglobal',
-  'https://www.youtube.com/@raisingwildflowers',
-  // — Канада: отъезд за границу и ранняя пенсия
-  'https://www.youtube.com/@blueprint.financial',
-  'https://www.youtube.com/@isagetslost',
-  'https://www.youtube.com/@maiabundant',
-  'https://www.youtube.com/@earlyretirementari',
-  'https://www.youtube.com/@robyn_smith',
+  'https://www.youtube.com/@argentinaattorneylawyer',
+  'https://www.youtube.com/@oliveiralawyers',
   'https://www.youtube.com/@nomadelite',
-  'https://www.youtube.com/@moneywithmark69',
-  // — русскоязычные, живут в Бразилии
-  'https://www.youtube.com/@sizova_k',
-  'https://www.youtube.com/@chechetkin_tut',
-  'https://www.youtube.com/@taropizhka',
-  'https://www.youtube.com/@kirill_brasil',
-  'https://www.youtube.com/@balakina_brazil',
-  'https://www.youtube.com/@lenainbrazil',
-  'https://www.youtube.com/@geonevazhno',
-  'https://www.youtube.com/@adveeenturers',
-  'https://www.youtube.com/@lomfam',
-  'https://www.youtube.com/@buzo',
-  'https://www.youtube.com/@bitvalatam',
-  // — русскоязычные сервисные: роды, ВНЖ, документы
-  'https://www.youtube.com/@elenji_brazil',
-  'https://www.youtube.com/@brazilpapa',
-  'https://www.youtube.com/@svoibrazil',
-  'https://www.youtube.com/@kamal_salbitti',
-  'https://www.youtube.com/@katia.brazil',
-  'https://www.youtube.com/@dyakonovm',
-  // — конкуренты: продают недвижимость в Бразилии русским
-  'https://www.youtube.com/@invest_in_brazil',
-  'https://www.youtube.com/@legacy_house_brazil',
-  // — соседние темы: эмиграция и Латинская Америка вообще
-  'https://www.youtube.com/@vadim_from_uru',
-  'https://www.youtube.com/@mashkevichlife',
-  'https://www.youtube.com/@shotaowl',
-  'https://www.youtube.com/@nestrashno',
-  'https://www.youtube.com/@varlamov.travel',
-  'https://www.youtube.com/@jastravelalex',
-  'https://www.youtube.com/@vova.karmanov',
+  'https://www.youtube.com/@worldwisecapital',
+  'https://www.youtube.com/@nomadicsean',
+  'https://www.youtube.com/@thefirstclasscitizen',
+  'https://www.youtube.com/@livinginlatam',
+  'https://www.youtube.com/@merkulov.realparaguay',
+  'https://www.youtube.com/@mylatinlife',
+  'https://www.youtube.com/@onlythesavvy',
+  'https://www.youtube.com/@chanelmaee',
+  'https://www.youtube.com/@evolutionexpats',
+  'https://www.youtube.com/@retireabroadliving',
+  'https://www.youtube.com/@adventurefreaksss',
+  'https://www.youtube.com/@stefanocreatini',
+  'https://www.youtube.com/@globalcitizensolutions',
+  'https://www.youtube.com/@vagabondawake',
 ]
 
 export const DEFAULT_CONFIG: ScanConfig = {
