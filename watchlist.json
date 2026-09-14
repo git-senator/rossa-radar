@@ -1,27 +1,13 @@
 {
   "_": "Что радар обходит круглосуточно. Правится текстом прямо здесь — код трогать не надо. Каналы можно писать ссылкой, @хэндлом или id.",
-  "_channels": "Каналы отобраны замером, а не на глаз: по каждому считались дата последнего ролика, доля последних названий про Бразилию, Аргентину и Парагвай, число комментариев и сколько из них модель признала квалифицированными лидами. Выброшены мёртвые (полгода без роликов) и тревел-каналы: комментариев под ними много, лидов нет, а бюджет модели они съедают целиком.",
+  "_channels": "Короткий список: только то, что доказано замером. По каждому каналу считались дата последнего ролика, доля последних названий про Бразилию, Аргентину и Парагвай, число комментариев и сколько из них модель признала квалифицированными лидами. Список держим коротким намеренно: у Groq 8 000 токенов в минуту, это около 26 комментариев за обход, и лишний канал крадёт оценку у настоящих лидов.",
   "channels": [
     "https://www.youtube.com/@nordicinvestor",
+    "https://www.youtube.com/@graemelamperson91",
     "https://www.youtube.com/@paraguaymike5159",
     "https://www.youtube.com/@growabroadre",
-    "https://www.youtube.com/@graemelamperson91",
     "https://www.youtube.com/@andysadventuresbrl",
-    "https://www.youtube.com/@baseinparaguay",
-    "https://www.youtube.com/@livingabroadwitheric",
-    "https://www.youtube.com/@argentinaattorneylawyer",
-    "https://www.youtube.com/@oliveiralawyers",
-    "https://www.youtube.com/@merkulov.realparaguay",
-    "https://www.youtube.com/@nomadicsean",
-    "https://www.youtube.com/@mgni_brokers",
-    "https://www.youtube.com/@nomadelite",
-    "https://www.youtube.com/@worldwisecapital",
-    "https://www.youtube.com/@thefirstclasscitizen",
-    "https://www.youtube.com/@livinginlatam",
-    "https://www.youtube.com/@mylatinlife",
-    "https://www.youtube.com/@evolutionexpats",
-    "https://www.youtube.com/@globalcitizensolutions",
-    "https://www.youtube.com/@stefanocreatini"
+    "https://www.youtube.com/@livingabroadwitheric"
   ],
   "_queries": "Запросы только по-английски: покупатель приходит из США и Канады. Каждый стоит 100 единиц квоты, поэтому в частом обходе они выключены, а в суточном идут все.",
   "queries": [
