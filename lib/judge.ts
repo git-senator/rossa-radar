@@ -20,14 +20,20 @@ const DEFAULT_BASE = 'https://api.groq.com/openai/v1'
 const DEFAULT_MODEL = 'openai/gpt-oss-120b'
 
 /**
- * Дюжина за запрос — компромисс, найденный замерами. Крупнее: ответный JSON не
- * влезает в отведённые токены и обрывается на середине, сервис возвращает 400.
- * Мельче: системная подсказка уходит с каждым запросом и умножается на их число.
+ * Двадцать за запрос. Системная подсказка уходит с каждым запросом, поэтому чем
+ * мельче пачки, тем больше их суммарная стоимость. Выше поднимать не стоит:
+ * ответный JSON должен целиком уложиться в отведённые токены, иначе он
+ * обрывается на середине и сервис возвращает 400.
  */
-const BATCH = 12
+const BATCH = 20
 
-/** Два запроса разом. Больше — упираемся не в Vercel, а в лимит токенов. */
-const PARALLEL = 2
+/**
+ * Три запроса разом. Минутный лимит — не ведро, которое кончается, а капающий
+ * кран: за отведённые обходу 35 секунд натекает ещё около 4 600 токенов сверх
+ * полного ведра. Двумя запросами по 4 000 этот приток не выбрать, тремя — как
+ * раз. Больше — упрёмся уже в саму минуту.
+ */
+const PARALLEL = 3
 
 /** Дольше не ждём: лучше отдать часть, чем словить таймаут функции. */
 const BUDGET_MS = 35_000
@@ -63,29 +69,24 @@ const SYSTEM = `Ты — агент, который квалифицирует �
 
 Поставь каждому комментарию балл 0-100: насколько его автор — потенциальный клиент.
 
-Квалифицирован (60-100), если человек пишет о себе и намерен хоть что-то из этого:
-- купить или арендовать жильё, землю, помещение;
-- вложить деньги, открыть бизнес, взять объект под сдачу;
-- получить ВНЖ, резидентство, гражданство или второй паспорт;
-- переехать или выйти на пенсию в одной из трёх стран.
-Сюда же — деловой вопрос по существу: цены, условия для иностранцев, порядок и сроки оформления, бюджет, просьба связаться.
+60-100: пишет о себе и намерен купить или арендовать жильё либо землю, вложить деньги, открыть бизнес, получить ВНЖ, резидентство, гражданство или второй паспорт, переехать или выйти на пенсию. Сюда же деловой вопрос по существу: цены, условия для иностранцев, порядок и сроки оформления, бюджет, просьба связаться.
 
 30-59: намерение личное, но размытое — «когда-нибудь хочу», ещё выбирает страну.
 
 0-29: не о себе или не наш человек.
 
 Правила:
-- Страны только три: Бразилия, Аргентина, Парагвай. Мексика, Уругвай, Колумбия, Коста-Рика и прочие — не наши, даже если намерение настоящее.
-- Кто уже переехал и уже всё оформил и теперь объясняет другим, как это делается, — советчик, а не клиент. Это 0, каким бы подробным ни был рассказ.
+- Страны только три: Бразилия, Аргентина, Парагвай. Мексика, Уругвай, Колумбия и прочие — не наши, даже если намерение настоящее.
+- Кто уже переехал, всё оформил и объясняет другим, как это делается, — советчик, а не клиент. Это 0, каким бы подробным ни был рассказ.
 - Вопрос автору ролика про его собственную жизнь («а какую визу ТЫ делаешь?») — не заявка о себе.
-- Местные жители, спорщики, шутки и подколы автора, похвала ролику, реклама своих услуг, риелторы и конкуренты — 0.
-- Упоминание покупки или аренды внутри насмешки или спора намерением не считается.
+- Местные, спорщики, шутки и подколы автора, похвала ролику, реклама услуг, риелторы и конкуренты — 0. Упоминание покупки внутри насмешки намерением не считается.
 - Язык любой. Название ролика дано как контекст.
 - Нет личного намерения — ставь 0, а не 20.
 
-«почему» — одна короткая фраза по-русски, не длиннее восьми слов: что за намерение и по какой стране.
+«почему» — что за намерение и по какой стране, не длиннее пяти слов. Если балл 0, оставь пустую строку: пояснять нечего.
 
-Ответь ТОЛЬКО объектом JSON вида {"оценки":{"<id>":{"балл":<число>,"почему":"<фраза>"}}} и оцени каждый комментарий.`
+Тебе приходит массив роликов, у каждого свои комментарии с номерами n.
+Ответь ТОЛЬКО объектом JSON вида {"оценки":{"<n>":{"балл":<число>,"почему":"<фраза>"}}}, где ключ — номер комментария. Оцени каждый номер.`
 
 export interface Verdict {
   score: number
@@ -152,13 +153,52 @@ function retryAfterMs(res: Response): number {
  */
 let reasoningEffort: 'low' | null = 'low'
 
-async function ask(batch: Candidate[], cfg: Config): Promise<Response> {
-  const payload = batch.map((c) => ({
-    id: c.id,
-    ролик: c.videoTitle.slice(0, 120),
-    комментарий: c.text.slice(0, MAX_CHARS),
+interface Prepared {
+  /** Тело запроса без модели и настроек — только полезная нагрузка. */
+  payload: unknown
+  /** Номер в запросе → настоящий id комментария. */
+  index: Map<string, string>
+  maxTokens: number
+}
+
+/**
+ * Собирает пачку так, чтобы она стоила как можно меньше токенов.
+ *
+ * Два приёма, каждый замерен. Первый: комментарии группируются по ролику, и его
+ * название уходит один раз на группу, а не с каждым комментарием — в типичной
+ * пачке из двенадцати комментариев роликов всего пять.
+ *
+ * Второй: вместо настоящего id YouTube (двадцать шесть символов) комментарий
+ * получает короткий номер. Экономия двойная — id занимал место и в запросе, и в
+ * ответе, потому что модель повторяет ключ в каждой строке результата.
+ */
+function prepare(batch: Candidate[]): Prepared {
+  const byVideo = new Map<string, Candidate[]>()
+  for (const c of batch) {
+    const list = byVideo.get(c.videoTitle) ?? []
+    list.push(c)
+    byVideo.set(c.videoTitle, list)
+  }
+
+  const index = new Map<string, string>()
+  let n = 0
+  const payload = [...byVideo].map(([title, list]) => ({
+    ролик: title.slice(0, 110),
+    комментарии: list.map((c) => {
+      const num = String(++n)
+      index.set(num, c.id)
+      return { n: num, текст: c.text.slice(0, MAX_CHARS) }
+    }),
   }))
 
+  // Groq вычитает из минутного лимита заявленный max_tokens, а не фактическую
+  // длину ответа, поэтому запас здесь стоит денег. С низким усилием рассуждений
+  // на них уходит около 280 токенов, дальше — балл и короткая фраза на
+  // комментарий, а у нулевых фразы нет вовсе.
+  return { payload, index, maxTokens: 400 + batch.length * 45 }
+}
+
+async function ask(p: Prepared, cfg: Config): Promise<Response> {
   return fetch(`${cfg.base}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.key}` },
@@ -166,15 +206,11 @@ async function ask(batch: Candidate[], cfg: Config): Promise<Response> {
       model: cfg.model,
       temperature: 0,
       ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-      // Groq вычитает из минутного лимита заявленный max_tokens, а не
-      // фактическую длину ответа. Со «щедрым» запасом два параллельных запроса
-      // съедали все 8 000 ещё до того, как модель успевала ответить. Считаем по
-      // размеру пачки: на комментарий уходит балл и короткая фраза.
-      max_tokens: 200 + batch.length * 90,
+      max_tokens: p.maxTokens,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: SYSTEM },
-        { role: 'user', content: JSON.stringify(payload) },
+        { role: 'user', content: JSON.stringify(p.payload) },
       ],
     }),
     cache: 'no-store',
@@ -186,7 +222,8 @@ async function judgeBatch(
   cfg: Config,
   deadline: number,
 ): Promise<Map<string, Verdict>> {
-  let res = await ask(batch, cfg)
+  const prepared = prepare(batch)
+  let res = await ask(prepared, cfg)
 
   // Минутный лимит токенов — штатная ситуация, а не поломка: подождём и
   // спросим ещё раз, если на это осталось время.
@@ -196,7 +233,7 @@ async function judgeBatch(
       throw new Error('лимит токенов, ждать дольше бюджета скана')
     }
     await new Promise((r) => setTimeout(r, wait))
-    res = await ask(batch, cfg)
+    res = await ask(prepared, cfg)
   }
 
   if (!res.ok) {
@@ -204,7 +241,7 @@ async function judgeBatch(
     // Сервис не знает про reasoning_effort — снимаем его и спрашиваем заново.
     if (res.status === 400 && /reasoning_effort/i.test(body) && reasoningEffort) {
       reasoningEffort = null
-      res = await ask(batch, cfg)
+      res = await ask(prepared, cfg)
       if (!res.ok) {
         throw new Error(`оценка ${res.status}: ${(await res.text()).slice(0, 160)}`)
       }
@@ -225,17 +262,15 @@ async function judgeBatch(
   const dict = (box.оценки ?? box.scores ?? box) as Record<string, unknown>
 
   const out = new Map<string, Verdict>()
-  for (const c of batch) {
-    const row = dict?.[c.id] as Record<string, unknown> | undefined
+  // Ключи в ответе — короткие номера, возвращаем им настоящие id комментариев.
+  for (const [num, id] of prepared.index) {
+    const row = dict?.[num] as Record<string, unknown> | undefined
     if (!row) continue
-    const score = Math.round(Number(row.балл ?? row.score))
-    if (!Number.isFinite(score)) continue
+    const raw = Math.round(Number(row.балл ?? row.score))
+    if (!Number.isFinite(raw)) continue
+    const score = Math.max(0, Math.min(100, raw))
     const why = String(row.почему ?? row.why ?? '').trim()
-    out.set(c.id, {
-      score: Math.max(0, Math.min(100, score)),
-      heat: heatOf(Math.max(0, Math.min(100, score))),
-      signals: why ? [why] : [],
-    })
+    out.set(id, { score, heat: heatOf(score), signals: why ? [why] : [] })
   }
   return out
 }
