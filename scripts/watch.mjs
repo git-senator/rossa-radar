@@ -12,6 +12,12 @@ import { dirname } from 'node:path'
 const RADAR_URL = (process.env.RADAR_URL || 'https://rossa-radar.vercel.app').replace(/\/$/, '')
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN
 const CHAT = process.env.TELEGRAM_CHAT_ID
+// The CRM inbox lives behind an n8n webhook (the CRM's public API stays
+// in-network): Radar posts a lead here and a tiny workflow forwards it to the
+// API with the CRM key. Both unset means "Telegram only" — the CRM leg simply
+// stays off, so this file keeps working with or without the integration wired.
+const CRM_INGEST_URL = process.env.CRM_INGEST_URL
+const CRM_INGEST_SECRET = process.env.CRM_INGEST_SECRET
 const SEEN_PATH = 'state/seen.json'
 
 /** Сколько идентификаторов помним. Дальше самые старые вытесняются. */
@@ -161,6 +167,11 @@ for (const p of fresh) {
     // Не помечаем как показанное — попробуем в следующий обход.
     console.error(`Telegram отказал: ${(await send.text()).slice(0, 200)}`)
   }
+
+  // Параллельно — в CRM. Best-effort: сбой CRM не мешает телеграму и не мешает
+  // пометить проспекта показанным (дедуп на стороне CRM по id комментария).
+  await ingestToCrm(p, ru)
+
   await new Promise((r) => setTimeout(r, 1200)) // бережём лимиты Telegram
 }
 
@@ -173,4 +184,48 @@ function save(all) {
   const ids = [...seenSet].slice(-SEEN_LIMIT)
   mkdirSync(dirname(SEEN_PATH), { recursive: true })
   writeFileSync(SEEN_PATH, `${JSON.stringify({ ids }, null, 1)}\n`)
+}
+
+/**
+ * Лид в форме, которую ждёт inbound CRM. Контакта у YouTube нет — тредом
+ * человека служит его канал (или имя, если канала нет), а ссылка на сам
+ * комментарий едет в `media` для кнопки «Ответить на YouTube».
+ *
+ * `ru` — русский рендер от Радара для нерусских комментариев; русские идут
+ * как есть. Недостающие языки инбокс сам откатит на оригинал.
+ */
+function crmPayload(p, ru) {
+  const isRu = /[Ѐ-ӿ]/.test(p.text)
+  const translations = {}
+  if (isRu) translations.ru = p.text
+  else if (ru) translations.ru = ru
+  return {
+    channel: 'youtube',
+    from_address: p.authorChannel ? https(p.authorChannel) : p.author,
+    from_name: p.author,
+    subject: clip(p.videoTitle, 200),
+    body_text: p.text,
+    provider_message_id: p.id,
+    lang: isRu ? 'ru' : undefined,
+    translations,
+    media: [{ kind: 'file', url: p.url, name: 'Ответить на YouTube' }],
+  }
+}
+
+/** Отправка лида в CRM через n8n. Тихо пропускает, если интеграция не настроена. */
+async function ingestToCrm(p, ru) {
+  if (!CRM_INGEST_URL || !CRM_INGEST_SECRET) return
+  try {
+    const r = await fetch(CRM_INGEST_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Radar-Secret': CRM_INGEST_SECRET,
+      },
+      body: JSON.stringify(crmPayload(p, ru)),
+    })
+    if (!r.ok) console.warn(`CRM отказала ${r.status}: ${(await r.text()).slice(0, 200)}`)
+  } catch (e) {
+    console.warn('CRM недоступна:', e.message)
+  }
 }
